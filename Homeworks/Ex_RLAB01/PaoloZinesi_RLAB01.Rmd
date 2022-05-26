@@ -1,0 +1,788 @@
+---
+title: "Laboratory Session - March 24, 2022"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+# Paolo Zinesi 2053062
+
+## Exercise 1
+
+Import data
+
+```{r}
+data_lakes <- read.csv("scottish_lakes_data.csv", header = TRUE, check.names = FALSE)
+data_lakes
+```
+
+### Exercise 1.1
+
+Find min & max volume
+
+```{r}
+idx_max_vol <- which.max(data_lakes[,"Volume(km3)"])
+idx_min_vol <- which.min(data_lakes[,"Volume(km3)"])
+lake_max_vol <- data_lakes[idx_max_vol, "Loch"]
+lake_min_vol <- data_lakes[idx_min_vol, "Loch"]
+max_vol <- data_lakes[idx_max_vol, "Volume(km3)"]
+min_vol <- data_lakes[idx_min_vol, "Volume(km3)"]
+
+cat("Lake with largest volume is", lake_max_vol, "with volume =", max_vol, "km^3\n")
+cat("Lake with smallest volume is", lake_min_vol, "with volume =", min_vol, "km^3\n")
+```
+
+Find min & max area
+
+```{r}
+idx_max_area <- which.max(data_lakes[,"Area(km2)"])
+idx_min_area <- which.min(data_lakes[,"Area(km2)"])
+lake_max_area <- data_lakes[idx_max_area, "Loch"]
+lake_min_area <- data_lakes[idx_min_area, "Loch"]
+max_area <- data_lakes[idx_max_area, "Area(km2)"]
+min_area <- data_lakes[idx_min_area, "Area(km2)"]
+
+
+cat("Lake with largest area is", lake_max_area, "with area =", max_area, "km^2\n")
+cat("Lake with smallest area is", lake_min_area, "with area =", min_area, "km^2\n")
+```
+
+### Exercise 1.2
+
+Order dataframe w.r.t. area
+
+```{r}
+areasorted_data_lakes <- data_lakes[order(data_lakes[,"Area(km2)"], decreasing = TRUE),]
+areasorted_data_lakes
+```
+
+```{r}
+cat("Lakes with largest areas are", areasorted_data_lakes[1,"Loch"], "and", areasorted_data_lakes[2,"Loch"], ",",
+    "with areas", areasorted_data_lakes[1,"Area(km2)"], "and", areasorted_data_lakes[2,"Area(km2)"], "km^2 , respectively")
+```
+
+### Exercise 1.3
+
+Sum up the areas occpupied by the lakes to determine the area of Scotland covered by water
+
+```{r}
+sum_area <- sum(data_lakes[,"Area(km2)"])
+cat("Area of Scotland covered by lakes =", sum_area, "km^2")
+```
+
+<br><br>
+## Exercise 2
+
+### Exercise 2.1
+
+Import data
+
+```{r}
+data_oil <- read.csv("crude-oil-prices.csv", header = TRUE, check.names = FALSE)
+data_oil
+
+years <- data_oil[,"Year"]
+prices <- data_oil[,"Oil - Crude prices since 1861 (current $)"]
+```
+
+### Exercise 2.2
+
+Plot oil price vs years
+
+```{r}
+plot(x = years, y = prices, type = 'o',
+     main = "Oil price vs years", xlab = "Year", ylab = "Oil price (current $)",
+     pch = 20, col = "steelblue", cex = 0.75, lwd = 1)
+
+axis(side = 1, at=seq(1850,2000,25))
+```
+
+### Exercise 2.3
+
+Find maximum price in history
+
+```{r}
+idx_max_oilprice <- which.max(prices)
+
+cat("The highest price in history is", prices[idx_max_oilprice], "$, it occured in", years[idx_max_oilprice])
+```
+
+### Exercise 2.4
+
+Plot price derivative
+
+```{r}
+prices_derivative <- (prices[-1] - prices[-(length(prices))])
+
+
+plot(x = years[-(length(years))], y = prices_derivative, type = 'o',
+     main = "Oil price derivative vs years", xlab = "Year", ylab = "Oil price derivative (current $)",
+     pch = 20, col = "steelblue", cex = 0.75, lwd = 1)
+
+axis(side = 1, at=seq(1850,2000,25))
+
+```
+
+<br><br>
+## Exercise 3
+
+```{r}
+library(tibble)
+library(readr)
+```
+
+### Exercise 3.1
+
+Import data in Tibble format
+
+```{r}
+data_coal <- read_csv("coal-production-by-country.csv", show_col_types = FALSE)
+data_coal
+```
+
+### Exercise 3.2
+
+Count the number of countries available in the file and produce a barplot with the number of entries for each country
+
+```{r}
+unique_countries <- unique(data_coal[["Entity"]])
+N_countries <- length(unique_countries)
+cat("Number of countries available =", N_countries)
+```
+
+```{r}
+counts_countries <- aggregate(x = list("Counts" = data_coal[["Entity"]]),
+                              by =list("Entity" = data_coal[["Entity"]]),
+                              FUN = length)
+counts_countries
+```
+
+```{r, fig.width=5}
+barplot(counts_countries[["Counts"]], names.arg = counts_countries[["Entity"]],
+        main = "Occurences for each country", xlab = "Country", ylab = "Occurrences", col = "steelblue")
+```
+
+### Exercise 3.3
+
+Select only the years ≥ 1970 and compute the total production for each country
+
+```{r}
+data_coal_after1970 <- data_coal[data_coal[["Year"]]>=1970,]
+
+productions_after1970 <- aggregate(x = list("Coal production (TWh)" = data_coal_after1970[["Coal production (TWh)"]]),
+                                  by =list("Entity" = data_coal_after1970[["Entity"]]),
+                                  FUN = sum)
+
+colnames(productions_after1970) <- c("Entity", "Coal production (TWh)")
+productions_after1970
+```
+
+Print the top 5 countries for production
+
+```{r}
+productionsorted_after1970 <- productions_after1970[order(productions_after1970[,"Coal production (TWh)"], decreasing = TRUE),]
+
+productionsorted_after1970[c(1:5),]
+```
+
+### Exercise 3.4
+
+Plot production as a function of time for each of the 5 top countries
+
+```{r, fig.height=5, fig.width=5}
+par(mfrow=c(3, 2), mar=c(4,4,4,4))
+
+for (i in c(1:5)) {
+  ent <- productionsorted_after1970[i,"Entity"]
+  mask <- (data_coal_after1970[["Entity"]] == ent)
+  
+  plot(x = data_coal_after1970[mask, "Year"][[1]],
+       y = data_coal_after1970[mask, "Coal production (TWh)"][[1]],
+       main = ent, xlab = "Year", ylab = "Coal production (TWh)",
+       col = "steelblue", type = 'o', pch = 20, cex = 1.5, lwd = 1.5)
+}
+
+```
+
+### Exercise 3.5
+
+Plot cumulative sum of the World’s coal production over the years
+
+```{r, fig.height=3}
+yearproduction_after1970 <- aggregate(x = list("Coal production (TWh)" = data_coal_after1970[["Coal production (TWh)"]]),
+                                      by =list("Year" = data_coal_after1970[["Year"]]),
+                                      FUN = sum)
+colnames(yearproduction_after1970) <- c("Year", "Coal production (TWh)")
+
+plot(x = yearproduction_after1970[["Year"]],
+     y = cumsum(yearproduction_after1970[["Coal production (TWh)"]]),
+     main = "Cumulative production of coal over the years",
+     xlab = "Year", ylab = "Coal production (TWh)",
+     col = "steelblue", type = 'o', pch = 20, cex = 1.5, lwd = 1.5)
+```
+
+<br><br>
+## Exercise 4
+```{r}
+library(dplyr)
+```
+
+### Exercise 4.1
+
+Import data
+```{r}
+url <- "https://raw.githubusercontent.com/owid/covid-19-data/3192ec32ed721ff4efd9081b36c0e6d8406c1114/public/data/vaccinations/vaccinations-by-manufacturer.csv"
+
+data_vaccine <- read_csv(url, show_col_types = FALSE)
+
+data_vaccine
+```
+
+
+### Italy
+
+Filter data for vaccines in Italy
+
+```{r}
+# vaccines in sparse order (some values are missing)
+italy_vaccines <- filter(data_vaccine, data_vaccine[["location"]] == "Italy")
+italy_vaccines
+```
+
+```{r}
+# useful variables
+avail_vaccines <- c("Moderna", "Pfizer/BioNTech", "Johnson&Johnson", "Oxford/AstraZeneca", "Novavax")
+
+datemin <- min(italy_vaccines[["date"]])
+datemax <- max(italy_vaccines[["date"]])
+dates <- seq(from=datemin, to=datemax, by="days")
+
+vaccmin <- min(italy_vaccines[["total_vaccinations"]])
+vaccmax <- max(italy_vaccines[["total_vaccinations"]])
+```
+
+
+Rearrange vaccination data in order to fill al the missing values
+
+```{r}
+# full tibble with 0s
+df_tmp <- tibble("location"="Italy",
+                 "date"=rep(dates, each=length(avail_vaccines)),
+                 "vaccine"=rep(avail_vaccines, length(dates)),
+                 "total_vaccinations"=0)
+
+
+# combine original data with 0s and aggregate to remove duplicates
+total_italy_vaccines <- tibble(aggregate(total_vaccinations ~ vaccine + date,
+                                         data = rbind(df_tmp, italy_vaccines),
+                                         FUN = sum))
+
+
+# loop over data to set 'total_vaccinations' as the previous day if the actual one is zero
+for (i in c((length(avail_vaccines)+1):dim(total_italy_vaccines)[1])){
+  
+  if(total_italy_vaccines[i,"total_vaccinations"] == 0){
+    total_italy_vaccines[i,"total_vaccinations"] <- total_italy_vaccines[i-length(avail_vaccines),"total_vaccinations"]
+  }
+  
+}
+
+total_italy_vaccines
+```
+
+
+### Exercise 4.2 (Italy)
+
+Plot number of vaccines as a function of time for different manufacturers (in Italy)
+
+```{r, fig.height=3.5}
+
+# plot loop
+for (i in c(1:length(avail_vaccines))) {
+  vacc <- avail_vaccines[i]
+  mask <- (total_italy_vaccines[["vaccine"]] == vacc)
+  
+  plot(x = total_italy_vaccines[mask, "date"][[1]],
+       y = total_italy_vaccines[mask, "total_vaccinations"][[1]],
+       xlim = c(datemin, datemax), ylim = c(vaccmin, vaccmax),
+       main = "Vaccine somministrations as a function of time (Italy)",
+       xlab = "Date", ylab = "Total vaccinations",
+       type = 'p', pch = 20, cex = 0.5, col = i,
+       axes = FALSE)
+  
+  par(new=TRUE)
+  
+}
+
+# define axis
+axis.Date(side=1, at=seq(from=datemin, to=datemax, by="months"), format="%Y-%m")
+axis(side=2)
+
+# define legend
+legend(x = "topleft", legend = avail_vaccines,
+       col = c(1:length(avail_vaccines)), lwd = 3)
+```
+
+
+### Exercise 4.3 (Italy)
+
+Plot total number of vaccines shot per day in Italy
+
+```{r}
+dailysum_italy_vaccines <- tibble(aggregate(x = list("total_vaccinations" = total_italy_vaccines[["total_vaccinations"]]),
+                                            by = list("date" = total_italy_vaccines[["date"]]),
+                                            FUN = sum))
+dailysum_italy_vaccines
+```
+
+```{r}
+# compute day-by-day difference
+derivative_italy_vaccines <- tibble("date" = dailysum_italy_vaccines[-1, "date"][[1]],
+                                    "daily_vaccinations" = (dailysum_italy_vaccines[-1, "total_vaccinations"][[1]] - dailysum_italy_vaccines[-(dim(dailysum_italy_vaccines)[1]),"total_vaccinations"][[1]]))
+
+derivative_italy_vaccines
+
+```
+
+
+```{r, fig.height=3.5}
+plot(x = derivative_italy_vaccines[["date"]],
+     y = derivative_italy_vaccines[["daily_vaccinations"]],
+     type = 'o', main = "Daily vaccinations as a function of time (in Italy)",
+     xlab = "Date", ylab = "Vaccinations per day",
+     pch = 20, col = "steelblue", cex = 0.75, lwd = 1,
+     axes = FALSE)
+
+# define axis
+axis.Date(side=1, at=dates[c(TRUE, rep(FALSE,20))], format="%Y-%m-%d")
+axis(side=2)
+```
+
+
+
+Let's repeat the same plots for Germany and United States of America:
+
+### Germany
+
+Filter data for vaccines in Germany
+
+```{r}
+# vaccines in sparse order (some values are missing)
+germany_vaccines <- filter(data_vaccine, data_vaccine[["location"]] == "Germany")
+germany_vaccines
+```
+
+```{r}
+# useful variables
+avail_vaccines <- c("Moderna", "Pfizer/BioNTech", "Johnson&Johnson", "Oxford/AstraZeneca", "Novavax")
+
+datemin <- min(germany_vaccines[["date"]])
+datemax <- max(germany_vaccines[["date"]])
+dates <- seq(from=datemin, to=datemax, by="days")
+
+vaccmin <- min(germany_vaccines[["total_vaccinations"]])
+vaccmax <- max(germany_vaccines[["total_vaccinations"]])
+```
+
+
+Rearrange vaccination data in order to fill al the missing values
+
+```{r}
+# full tibble with 0s
+df_tmp <- tibble("location"="Germany",
+                 "date"=rep(dates, each=length(avail_vaccines)),
+                 "vaccine"=rep(avail_vaccines, length(dates)),
+                 "total_vaccinations"=0)
+
+
+# combine original data with 0s and aggregate to remove duplicates
+total_germany_vaccines <- tibble(aggregate(total_vaccinations ~ vaccine + date,
+                                         data = rbind(df_tmp, germany_vaccines),
+                                         FUN = sum))
+
+
+# loop over data to set 'total_vaccinations' as the previous day if the actual one is zero
+for (i in c((length(avail_vaccines)+1):dim(total_germany_vaccines)[1])){
+  
+  if(total_germany_vaccines[i,"total_vaccinations"] == 0){
+    total_germany_vaccines[i,"total_vaccinations"] <- total_germany_vaccines[i-length(avail_vaccines),"total_vaccinations"]
+  }
+  
+}
+
+total_germany_vaccines
+```
+
+
+### Exercise 4.2 (Germany)
+
+Plot number of vaccines as a function of time for different manufacturers (in Germany)
+
+```{r, fig.height=3.5}
+
+# plot loop
+for (i in c(1:length(avail_vaccines))) {
+  vacc <- avail_vaccines[i]
+  mask <- (total_germany_vaccines[["vaccine"]] == vacc)
+  
+  plot(x = total_germany_vaccines[mask, "date"][[1]],
+       y = total_germany_vaccines[mask, "total_vaccinations"][[1]],
+       xlim = c(datemin, datemax), ylim = c(vaccmin, vaccmax),
+       main = "Vaccine somministrations as a function of time (Germany)",
+       xlab = "Date", ylab = "Total vaccinations",
+       type = 'p', pch = 20, cex = 0.5, col = i,
+       axes = FALSE)
+  
+  par(new=TRUE)
+  
+}
+
+# define axis
+axis.Date(side=1, at=seq(from=datemin, to=datemax, by="months"), format="%Y-%m")
+axis(side=2)
+
+# define legend
+legend(x = "topleft", legend = avail_vaccines,
+       col = c(1:length(avail_vaccines)), lwd = 3)
+```
+
+
+### Exercise 4.3 (Germany)
+
+Plot total number of vaccines shot per day in Germany
+
+```{r}
+dailysum_germany_vaccines <- tibble(aggregate(x = list("total_vaccinations" = total_germany_vaccines[["total_vaccinations"]]),
+                                            by = list("date" = total_germany_vaccines[["date"]]),
+                                            FUN = sum))
+dailysum_germany_vaccines
+```
+
+```{r}
+# compute day-by-day difference
+derivative_germany_vaccines <- tibble("date" = dailysum_germany_vaccines[-1, "date"][[1]],
+                                    "daily_vaccinations" = (dailysum_germany_vaccines[-1, "total_vaccinations"][[1]] - dailysum_germany_vaccines[-(dim(dailysum_germany_vaccines)[1]),"total_vaccinations"][[1]]))
+
+derivative_germany_vaccines
+
+```
+
+
+```{r, fig.height=3.5}
+plot(x = derivative_germany_vaccines[["date"]],
+     y = derivative_germany_vaccines[["daily_vaccinations"]],
+     type = 'o', main = "Daily vaccinations as a function of time (in Germany)",
+     xlab = "Date", ylab = "Vaccinations per day",
+     pch = 20, col = "steelblue", cex = 0.75, lwd = 1,
+     axes = FALSE)
+
+# define axis
+axis.Date(side=1, at=dates[c(TRUE, rep(FALSE,20))], format="%Y-%m-%d")
+axis(side=2)
+```
+
+### United States
+
+Filter data for vaccines in the USA
+
+```{r}
+# vaccines in sparse order (some values are missing)
+usa_vaccines <- filter(data_vaccine, data_vaccine[["location"]] == "United States")
+usa_vaccines
+```
+
+The data contain many mistakes, here we try to fix the most relevant ones...
+```{r}
+# FIX BY HAND the biggest mistake in the original data
+
+mask <- (usa_vaccines[["date"]] == '2022-03-16' & usa_vaccines[["vaccine"]] == 'Johnson&Johnson')
+usa_vaccines[mask, "total_vaccinations"] <- 0
+```
+
+```{r}
+# useful variables
+avail_vaccines <- c("Moderna", "Pfizer/BioNTech", "Johnson&Johnson")
+
+datemin <- min(usa_vaccines[["date"]])
+datemax <- max(usa_vaccines[["date"]])
+dates <- seq(from=datemin, to=datemax, by="days")
+
+vaccmin <- min(usa_vaccines[["total_vaccinations"]])
+vaccmax <- max(usa_vaccines[["total_vaccinations"]])
+```
+
+
+Rearrange vaccination data in order to fill al the missing values
+
+```{r}
+# complete tibble with 0s
+df_tmp <- tibble("location"="United States",
+                 "date"=rep(dates, each=length(avail_vaccines)),
+                 "vaccine"=rep(avail_vaccines, length(dates)),
+                 "total_vaccinations"=0)
+
+
+# combine original data with 0s and aggregate to remove duplicates
+total_usa_vaccines <- tibble(aggregate(total_vaccinations ~ vaccine + date,
+                                         data = rbind(df_tmp, usa_vaccines),
+                                         FUN = sum))
+
+
+# loop over data to set 'total_vaccinations' as the previous day if the actual one is zero
+for (i in c((length(avail_vaccines)+1):dim(total_usa_vaccines)[1])){
+  
+  if(total_usa_vaccines[i,"total_vaccinations"] == 0){
+    total_usa_vaccines[i,"total_vaccinations"] <- total_usa_vaccines[i-length(avail_vaccines),"total_vaccinations"]
+  }
+  
+}
+
+
+total_usa_vaccines
+```
+
+
+### Exercise 4.2 (United States)
+
+Plot number of vaccines as a function of time for different manufacturers (in the United States)
+
+```{r, fig.height=3.5}
+
+# plot loop
+for (i in c(1:length(avail_vaccines))) {
+  vacc <- avail_vaccines[i]
+  mask <- (total_usa_vaccines[["vaccine"]] == vacc)
+  
+  plot(x = total_usa_vaccines[mask, "date"][[1]],
+       y = total_usa_vaccines[mask, "total_vaccinations"][[1]],
+       xlim = c(datemin, datemax), ylim = c(vaccmin, vaccmax),
+       main = "Vaccine somministrations as a function of time (United States)",
+       xlab = "Date", ylab = "Total vaccinations",
+       type = 'p', pch = 20, cex = 0.5, col = i,
+       axes = FALSE)
+  
+  par(new=TRUE)
+  
+}
+
+# define axis
+axis.Date(side=1, at=seq(from=datemin, to=datemax, by="months"), format="%Y-%m")
+axis(side=2)
+
+# define legend
+legend(x = "topleft", legend = avail_vaccines,
+       col = c(1:length(avail_vaccines)), lwd = 3)
+```
+
+
+### Exercise 4.3 (United States)
+
+Plot total number of vaccines shot per day in United States
+
+```{r}
+dailysum_usa_vaccines <- tibble(aggregate(x = list("total_vaccinations" = total_usa_vaccines[["total_vaccinations"]]),
+                                          by = list("date" = total_usa_vaccines[["date"]]),
+                                          FUN = sum))
+dailysum_usa_vaccines
+```
+
+```{r}
+# compute day-by-day difference
+derivative_usa_vaccines <- tibble("date" = dailysum_usa_vaccines[-1, "date"][[1]],
+                                    "daily_vaccinations" = (dailysum_usa_vaccines[-1, "total_vaccinations"][[1]] - dailysum_usa_vaccines[-(dim(dailysum_usa_vaccines)[1]),"total_vaccinations"][[1]]))
+
+derivative_usa_vaccines
+
+```
+
+
+```{r, fig.height=3.5}
+plot(x = derivative_usa_vaccines[["date"]],
+     y = derivative_usa_vaccines[["daily_vaccinations"]],
+     type = 'o', main = "Daily vaccinations as a function of time (in the United States)",
+     xlab = "Date", ylab = "Vaccinations per day",
+     pch = 20, col = "steelblue", cex = 0.75, lwd = 1,
+     axes = FALSE)
+
+# define axis
+axis.Date(side=1, at=dates[c(TRUE, rep(FALSE,20))], format="%Y-%m-%d")
+axis(side=2)
+```
+
+
+### Exercise 4.4
+
+Country-by-country data on global COVID-19 vaccinations
+```{r}
+url <- "https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/vaccinations/vaccinations.csv"
+
+data_vaccine_countries <- read_csv(url, show_col_types = FALSE)
+
+data_vaccine_countries
+```
+
+Filter data for vaccines in Europe
+```{r}
+europe_vaccines <- filter(data_vaccine_countries, data_vaccine_countries[["iso_code"]] == "OWID_EUR")
+europe_vaccines
+```
+Plot the number of daily vaccinations per million as a function of date
+```{r, fig.height=3.5}
+datemin <- min(europe_vaccines[["date"]])
+datemax <- max(europe_vaccines[["date"]])
+dates <- seq(from=datemin, to=datemax, by="days")
+
+
+plot(x = europe_vaccines[["date"]],
+     y = europe_vaccines[["daily_vaccinations_per_million"]],
+     type = 'o', main = "Daily vaccinations as a function of time (in Europe)",
+     xlab = "Date", ylab = "Vaccinations per million people per day",
+     pch = 20, col = "steelblue", cex = 0.75, lwd = 1,
+     axes = FALSE)
+
+# define axis
+axis.Date(side=1, at=dates[c(TRUE, rep(FALSE,30))], format="%Y-%m-%d")
+axis(side=2)
+```
+
+
+### Exercise 4.5
+
+Produce cool plots
+```{r}
+# select all european countries
+url <- "https://raw.githubusercontent.com/ajturner/acetate/master/places/Countries-Europe.csv"
+european_countries <- read_csv(url, show_col_types = FALSE)
+european_countries <- european_countries[, c("name", "ISO alpha 3")]
+colnames(european_countries) <- c("Country", "ISO_code")
+
+european_countries
+```
+```{r}
+
+european_countries_vaccinations <- filter(data_vaccine_countries,
+                                          ifelse(data_vaccine_countries[["iso_code"]] %in% european_countries[["ISO_code"]], TRUE, FALSE))
+
+
+european_countries_vaccinations[european_countries_vaccinations[["date"]] %in% seq(from=as.Date("2022-03-20"),to=as.Date("2022-03-28"), by="days"),]
+
+```
+
+Here we plot the comparison between single european countries and the average of all of them
+```{r, fig.height=3.5}
+# useful parameters
+datemin <- min(european_countries_vaccinations[["date"]])
+datemax <- max(european_countries_vaccinations[["date"]])
+dates <- seq(from=datemin, to=datemax, by="days")
+vaccmin <- min(european_countries_vaccinations[["daily_vaccinations_per_million"]], na.rm = TRUE)
+vaccmax <- max(european_countries_vaccinations[["daily_vaccinations_per_million"]], na.rm = TRUE)
+
+# plot vaccinations of all countries in Europe
+plot(x = european_countries_vaccinations[["date"]],
+     y = european_countries_vaccinations[["daily_vaccinations_per_million"]],
+     xlim = c(datemin, datemax), ylim = c(vaccmin, vaccmax),
+     xlab = "Date", ylab = "Vaccinations per million people per day",
+     type = 'o', main = "Daily vaccinations as a function of time (single european countries vs european average)",
+     pch = 20, cex = 0.75, lwd = 1,
+     axes = FALSE)
+
+par(new=TRUE)
+
+# plot (mean) vaccinations of Europe
+plot(x = europe_vaccines[["date"]],
+     y = europe_vaccines[["daily_vaccinations_per_million"]],
+     xlim = c(datemin, datemax), ylim = c(vaccmin, vaccmax),
+     xlab = "", ylab = "",
+     type = 'o',
+     pch = 20, col = "red", cex = 0.75, lwd = 1,
+     axes = FALSE)
+
+# define axis
+axis.Date(side=1, at=dates[c(TRUE, rep(FALSE,30))], format="%Y-%m-%d")
+axis(side=2)
+
+# define legend
+legend(x = "topright", legend = c("European countries","Europe (average)"),
+       col = c(1,2), lwd = 3)
+```
+
+Plot time progression of number of vaccinated people for each vaccination level
+```{r, fig.height=3.5}
+# useful parameters
+datemin <- min(europe_vaccines[["date"]])
+datemax <- max(europe_vaccines[["date"]])
+dates <- seq(from=datemin, to=datemax, by="days")
+vaccmin <- min(europe_vaccines[["people_vaccinated"]], na.rm = TRUE)
+vaccmax <- max(europe_vaccines[["people_vaccinated"]], na.rm = TRUE)
+
+avail_feat <- c("people_vaccinated", "people_fully_vaccinated", "total_boosters")
+
+# plot loop
+for (i in c(1:length(avail_feat))) {
+  feat <- avail_feat[i]
+  
+  plot(x = europe_vaccines[, "date"][[1]],
+       y = europe_vaccines[, feat][[1]],
+       xlim = c(datemin, datemax), ylim = c(vaccmin, vaccmax),
+       main = "Vaccinated people for each vaccination level (in Europe)",
+       xlab = "Date", ylab = "Vaccinations",
+       type = 'p', pch = 20, cex = 0.5, col = i+1,
+       axes = FALSE)
+  
+  par(new=TRUE)
+  
+}
+
+# define axis
+axis.Date(side=1, at=dates[c(TRUE, rep(FALSE,30))], format="%Y-%m-%d")
+axis(side=2)
+
+# define legend
+legend(x = "topleft", legend = c("Vaccinated", "Fully vaccinated", "Booster-vaccinated"),
+       col = c(2:(length(avail_feat)+1)), lwd = 3)
+```
+
+
+Here we plot the difference between 1st-2nd dose and 2nd-booster dose number of vaccinations
+```{r, fig.height=3, fig.width=3}
+par(mar=c(5, 4, 4, 4))
+
+# correlation between first-second dose and second-booster dose choices
+european_countries_actualvaccinations <- tibble(aggregate(cbind(people_vaccinated, people_fully_vaccinated, total_boosters) ~ iso_code,
+                                         data = european_countries_vaccinations,
+                                         FUN = max))
+
+# useful variables
+xmax <- max(european_countries_actualvaccinations[, avail_feat[2]][[1]])
+ymax <- max(european_countries_actualvaccinations[, avail_feat[1]][[1]],
+            european_countries_actualvaccinations[, avail_feat[3]][[1]])
+
+
+# fist-vs-second dose
+plot(x = european_countries_actualvaccinations[, avail_feat[2]][[1]],
+     y = european_countries_actualvaccinations[, avail_feat[1]][[1]],
+     xlim = c(0, xmax), ylim = c(0, ymax),
+     xlab = "Fully vaccinated", ylab = "",
+     main = "Comparison of 1st-2nd and 2nd-booster vaccinations",
+     type = 'p', pch = 20, cex = 1, lwd = 1,
+     col = "steelblue",
+     axes = FALSE)
+
+par(new=TRUE)
+
+# second-vs-booster dose
+plot(x = european_countries_actualvaccinations[, avail_feat[2]][[1]],
+     y = european_countries_actualvaccinations[, avail_feat[3]][[1]],
+     xlim = c(0, xmax), ylim = c(0, ymax),
+     xlab = "Fully vaccinated", ylab = "",
+     type = 'p', pch = 20, cex = 1, lwd = 1,
+     col = "firebrick",
+     axes = FALSE)
+
+# define axis and axis labels
+axis(1)
+axis(2, col.axis="steelblue")
+axis(4, col.axis="firebrick")
+mtext("Vaccinated", side=2, line=3, cex.lab=1,las=0, col="steelblue")
+mtext("Booster-vaccinated", side=4, line=3, cex.lab=1,las=0, col="firebrick")
+```

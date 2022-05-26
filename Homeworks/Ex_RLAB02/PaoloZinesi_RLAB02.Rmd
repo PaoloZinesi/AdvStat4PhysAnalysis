@@ -1,0 +1,387 @@
+---
+title: "Laboratory Session - March 31, 2022"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+# Paolo Zinesi 2053062
+```{r}
+set.seed(12345)
+
+library(ggplot2)
+library(gridExtra)
+library(GoFKernel)
+```
+
+
+## Exercise 1
+A set of measurements have been performed on the concentration of a contaminant in tap water.
+```{r}
+x <- c(15.58, 15.9, 16, 16.1, 16.2)
+p1 <- c(0.15, 0.21, 0.35, 0.15, 0.14)
+p2 <- c(0.14, 0.05, 0.64, 0.08, 0.09)
+
+
+e1 <- sum(x*p1)
+e2 <- sum(x*p2)
+var1 <- sum((x*x)*p1) - e1*e1
+var2 <- sum((x*x)*p2) - e2*e2
+
+cat("Method 1: expected value =", round(e1,3), ", variance =", round(var1,3))
+cat("\nMethod 2: expected value =", round(e2,3), ", variance =", round(var2,3))
+```
+
+
+## Exercise 2
+The waiting time, in minutes, at the doctor’s is about 30 minutes, and the distribution follows an exponential pdf with rate 1/30
+```{r}
+# ∆t = 1 min
+rate <- 1/30
+wait_sim <- rexp(50, rate = rate)
+
+hist(wait_sim, main = "Waiting times histogram (N=50)", xlab = "Time (min)", ylab = "Counts")
+grid()
+hist(wait_sim,
+     col="steelblue", add=TRUE)
+```
+
+```{r}
+prob_less10min <- pexp(10, rate = rate)
+cat("The probability that a person will wait less than 10 minutes is", round(prob_less10min*100,1), "%")
+```
+
+
+```{r}
+sim_mean <- mean(wait_sim)
+thr1_expectvalue <- 1/rate
+thr2_expectvalue <- integrate( function(x) {x*dexp(x, rate = rate)}, lower = 0, upper = Inf)
+
+
+cat("Average waiting time in the simulation =", round(sim_mean,2), "min\n")
+cat("Average waiting time by the definition =", thr1_expectvalue, "min\n")
+cat("Average waiting time by the integral = (", thr2_expectvalue[["value"]], "±", round(thr2_expectvalue[["abs.error"]], digits=6), ") min\n")
+```
+
+
+```{r}
+prob_more1h <- (1-pexp(60, rate = rate))
+cat("The probability that a person will wait more than 1 hour is", round(prob_more1h*100,1), "%")
+```
+
+
+```{r, fig.height=2.5, fig.width=4}
+x_doctor <- seq(0,200,0.1)
+pdf_doctor <- data.frame(x=x_doctor, y=dexp(x_doctor, rate = rate))
+
+prob_plt_doctor <- ggplot(data=pdf_doctor, mapping=aes(x=x, y=y)) +
+                        labs(title="PDF of waiting times", fill = "Probabilities") +
+                        geom_line(data=pdf_doctor, aes(x = x, y = y), size=0.5) +
+                        geom_area(data=pdf_doctor,
+                                  aes(x = ifelse(x>0 & x<10, x, 0), fill = paste(c("P(t < 10 min) =",round(prob_less10min,3)), collapse = " ")),
+                                  alpha = 0.5) +
+                        geom_area(data=pdf_doctor,
+                                  aes(x = ifelse(x>60, x, 0), fill = paste(c("P(t > 60 min) =",round(prob_more1h,3)), collapse = " ")),
+                                  alpha = 0.5) +
+                        scale_x_continuous(name ="Time (min)") +
+                        scale_y_continuous(name ="Probability density", limits = c(0, max(pdf_doctor$y))) +
+                        theme_bw() +
+                        theme(plot.title=element_text(hjust=0.5), legend.position = c(0.85,0.85), legend.box.background = element_rect(size=0.5))
+
+prob_plt_doctor
+```
+
+
+## Exercise 3
+Let’s suppose that on a book, on average, there is one typo error every three pages. The number of errors follows a Poisson distribution.
+```{r, fig.height=2.5, fig.width=5}
+#par(mfrow=c(1, 2), mar=c(2,2,2,2))
+
+# ∆N = 1 pag
+rate <- 1/3
+
+x_books <- c(0:10)
+pdf_books <- data.frame(x=x_books, y=dpois(x_books , lambda=rate))
+cdf_books <- data.frame(x=x_books, y=ppois(x_books , lambda=rate))
+
+pdf_plt_books <- ggplot(pdf_books, aes(x=x, y=y)) +
+                        labs(title="PDF of the distribution of errors") +
+                        geom_segment(aes(x=x, xend=x, y=0, yend=y)) +
+                        geom_point(size=3, color='orange') + 
+                        scale_x_continuous(name ="Errors", breaks=seq(0,10,2)) +
+                        scale_y_continuous(name ="Probability", limits = c(0,1)) +
+                        theme_bw() +
+                        theme(plot.title=element_text(hjust=0.5))
+
+cdf_plt_books <- ggplot(cdf_books, aes(x=x, y=y)) +
+                        labs(title="CDF of the distribution of errors") +
+                        geom_segment(aes(x=x, xend=x, y=0, yend=y)) +
+                        geom_point(size=3, color='#69b3a2') + 
+                        scale_x_continuous(name ="Errors", breaks=seq(0,10,2)) +
+                        scale_y_continuous(name ="Cumulative probability", limits = c(0,1)) +
+                        theme_bw() +
+                        theme(plot.title=element_text(hjust=0.5))
+
+grid.arrange(pdf_plt_books, cdf_plt_books, nrow = 1)
+```
+
+
+
+```{r}
+prob_more1error <- 1 - ppois(0 , lambda=rate)
+cat("The probability that there is at least one error on a specific page of the book is", round(prob_more1error*100,1), "%")
+```
+
+
+## Exercise 4
+We randomly draw cards from a deck of 52 cards, with replacement, until one ace is drawn. Calculate the probability that at least 10 draws are needed.
+```{r, fig.height=2.5, fig.width=5, fig.asp=0.5}
+prob <- 4/52
+
+x_cards <- c(0:20)
+pdf_cards <- data.frame(x=x_cards, y=dgeom(x_cards, prob=prob))
+cdf_cards <- data.frame(x=x_cards, y=pgeom(x_cards, prob=prob))
+
+pdf_plt_cards <- ggplot(pdf_cards, aes(x=x, y=y)) +
+                        labs(title="PDF of geometric distribution (p=4/52)") +
+                        geom_segment(aes(x=x, xend=x, y=0, yend=y)) +
+                        geom_point(size=3, color='orange') + 
+                        scale_x_continuous(name ="Failures before first success") +
+                        scale_y_continuous(name ="Probability") +
+                        theme_bw() +
+                        theme(plot.title=element_text(hjust=0.5))
+
+cdf_plt_cards <- ggplot(cdf_cards, aes(x=x, y=y)) +
+                        labs(title="CDF of geometric distribution (p=4/52)") +
+                        geom_segment(aes(x=x, xend=x, y=0, yend=y)) +
+                        geom_point(size=3, color='#69b3a2') + 
+                        scale_x_continuous(name ="Failures before first success") +
+                        scale_y_continuous(name ="Cumulative probability") +
+                        theme_bw() +
+                        theme(plot.title=element_text(hjust=0.5))
+
+grid.arrange(pdf_plt_cards, cdf_plt_cards, nrow = 1)
+```
+
+
+With the terminology of this distribution definition, calculating the probability that at least 10 draws are needed is equivalent to calculate the probability that at least 9 failures occurred before the first success.
+```{r}
+prob_more9fails <- 1 - pgeom(8, prob=prob)
+cat("The probability that at least 10 draws are needed until we draw an ace is", round(prob_more9fails*100,1), "%")
+```
+
+
+```{r}
+prob_plt_cards <- pdf_plt_cards + 
+                  labs(fill = "Probabilities") +
+                  geom_col(data=pdf_cards,
+                           aes(x=ifelse(x>=9, x, 0), y=ifelse(x>=9, y, 0), fill = paste(c("P(n_fails ≥ 9) =", round(prob_more9fails,3)), collapse = " ")),
+                           alpha=1, size=0.5, width = 0.4) +
+                  scale_fill_manual(values="steelblue") +
+                  theme(legend.position = c(0.85,0.85), legend.box.background = element_rect(size=0.5))
+
+prob_plt_cards
+```
+
+
+## Exercise 5
+
+### Exercise 5a
+
+Determine the constant c.
+```{r}
+c_inverse_integral <- integrate( function(t) {(t-1)*(2-t)}, lower = 1, upper = 2)
+c_inverse_thr <- 1/6
+c_integral <- 1/c_inverse_integral[["value"]]
+
+cat("The inverse of c is, by the integral, (", signif(c_inverse_integral[["value"]],3), "±", signif(c_inverse_integral[["abs.error"]],2), ")\n")
+cat("The inverse of c is, analytically,", signif(c_inverse_thr,3), "\n\n")
+
+cat("The value of c, by the analytic integral, is", c_integral)
+```
+
+
+### Exercise 5b
+
+Write the set of the four functions (PDF, CDF, quantile function, random generation) and plot the PDF and CDF, respectively.
+```{r}
+# PDF
+dTOLC <- Vectorize(FUN = function(x) { return(ifelse( (x>1) && (x<2), c_integral*(x-1)*(2-x), 0)) })
+
+# CDF
+pTOLC <- Vectorize(FUN = function(q) { if (q<1) { return(0) }
+                                       else if (q>2) { return(1) }
+                                       else { return(integrate(dTOLC, lower = 1, upper = q)[["value"]]) }
+                                     })
+
+# quantile function
+qTOLC <- Vectorize(FUN = inverse(pTOLC, lower = 1, upper = 2))
+
+# random generation
+rTOLC <- function(n) { return(qTOLC(runif(n, min = 0, max = 1))) }
+```
+
+
+Plot the PDF and CDF.
+```{r, fig.height=2.5, fig.width=5}
+# ∆t = 1h
+x_TOLC <- seq(1-0.5,2+0.5,0.001)
+pdf_TOLC <- data.frame(x=x_TOLC, y=dTOLC(x_TOLC))
+cdf_TOLC <- data.frame(x=x_TOLC, y=pTOLC(x_TOLC))
+
+pdf_plt_TOLC <- ggplot(pdf_TOLC, aes(x=x, y=y)) +
+                        labs(title="PDF of TOLC test times") +
+                        geom_line(data=pdf_TOLC, aes(x = x, y = y), color='steelblue', size=0.5) +
+                        scale_x_continuous(name ="Time (h)") +
+                        scale_y_continuous(name ="Probability density") +
+                        theme_bw() +
+                        theme(plot.title=element_text(hjust=0.5))
+
+cdf_plt_TOLC <- ggplot(cdf_TOLC, aes(x=x, y=y)) +
+                        labs(title="CDF of TOLC test times") +
+                        geom_line(data=cdf_TOLC, aes(x = x, y = y), color='steelblue', size=0.5) +
+                        scale_x_continuous(name ="Time (h)") +
+                        scale_y_continuous(name ="Cumulative probability") +
+                        theme_bw() +
+                        theme(plot.title=element_text(hjust=0.5))
+
+grid.arrange(pdf_plt_TOLC, cdf_plt_TOLC, nrow = 1)
+```
+
+### Exercise 5c
+
+Evaluate the probability that the student will finish the aptitude test in more than 75 minutes and the probability that it will take 90 and 120 minutes. In order to compute the probability that it will take exactly 90 and 120 minutes, we calculate the probability by integrating the PDF in the interval $|t-t_0| \leq \frac{1}{2}\frac{1}{60}$ with $t$ and $t_0=\frac{75}{60}, \frac{120}{60}$ both expressed in hours. For instance, to compute the probability to take 75 minutes we integrate the PDF in the interval $(74.5, 75.5)$ minutes.
+
+```{r}
+prob_more75min <- 1 - pTOLC(75/60)
+prob_90min <- pTOLC(90.5/60) - pTOLC(89.5/60)
+prob_120min <- pTOLC(120.5/60) - pTOLC(119.5/60)
+cat("The probability to finish in more than 75 minutes is", round(prob_more75min*100,1), "%\n")
+cat("The probability to finish in (exactly) 90 minutes is", round(prob_90min*100,1), "%\n")
+cat("The probability to finish in (exactly) 120 minutes is", round(prob_120min*100,3), "%")
+```
+
+```{r, warning = FALSE, fig.height=3, fig.width=7}
+
+
+prob1_plt_TOLC <- pdf_plt_TOLC +
+                  labs(fill = "Probabilities") +
+                  geom_area(data=pdf_TOLC,
+                            aes(x=ifelse(x>=75/60, x, NA),
+                                fill = paste(c("P(t ≥ 75 min) =", round(prob_more75min,3)), collapse = " ")),
+                            alpha = 0.5) +
+                  theme(legend.position = c(0.85,0.9), legend.box.background = element_rect(size=0.5))
+
+prob2_plt_TOLC <- pdf_plt_TOLC +
+                  labs(fill = "Probabilities") +
+                  geom_area(data=pdf_TOLC,
+                            aes(x=ifelse(x>=89.5/60 & x<=90.5/60, x, NA),
+                                fill = paste(c("P(t ~ 90 min) =", signif(prob_90min,3)), collapse = " ")),
+                            alpha = 1) +
+                  geom_area(data=pdf_TOLC,
+                            aes(x=ifelse(x>=119.5/60 & x<=120.5/60, x, NA),
+                                fill = paste(c("P(t ~ 120 min) =", formatC(prob_120min,digits=1,format='e')), collapse = " ")),
+                            alpha = 1) +
+                  scale_fill_manual(values=c('red','darkolivegreen3')) +
+                  theme(legend.position = c(0.85,0.9), legend.box.background = element_rect(size=0.5))
+
+grid.arrange(prob1_plt_TOLC, prob2_plt_TOLC, nrow = 1)
+```
+
+## Exercise 6
+
+### Exercise 6a
+
+Write the set of the four functions (PDF, CDF, quantile function, random generation) and plot the PDF and CDF, respectively.
+```{r}
+# PDF
+dtires <- Vectorize(FUN = function(x) { return(ifelse( (x>1) && (x<2), 2/x**2, 0)) })
+
+# CDF
+ptires <- Vectorize(FUN = function(q) { if (q<1) { return(0) }
+                                       else if (q>2) { return(1) }
+                                       else { return(integrate(dtires, lower = 1, upper = q)[["value"]]) }
+                                     })
+
+# quantile function
+qtires <- Vectorize(FUN = inverse(ptires, lower = 1, upper = 2))
+
+# random generation
+rtires <- function(n) { return(qtires(runif(n, min = 0, max = 1))) }
+```
+
+
+Plot the PDF and CDF, considering all the y values expressed in kilometers.
+```{r, fig.height=2.5, fig.width=5}
+x_tires <- seq(1-0.5,2+0.5,0.01)
+x_tires_km <- x_tires * 10**4 #km
+pdf_tires <- data.frame(x=x_tires_km, y=dtires(x_tires))
+cdf_tires <- data.frame(x=x_tires_km, y=ptires(x_tires))
+
+pdf_plt_tires <- ggplot(pdf_tires, aes(x=x, y=y)) +
+                        labs(title="PDF of tires lifetimes") +
+                        geom_line(data=pdf_tires, aes(x = x, y = y), color='steelblue', size=0.5) +
+                        scale_x_continuous(name ="Distance (km)") +
+                        scale_y_continuous(name ="Probability density") +
+                        theme_bw() +
+                        theme(plot.title=element_text(hjust=0.5))
+
+cdf_plt_tires <- ggplot(cdf_tires, aes(x=x, y=y)) +
+                        labs(title="CDF of tires lifetimes") +
+                        geom_line(data=cdf_tires, aes(x = x, y = y), color='steelblue', size=0.5) +
+                        scale_x_continuous(name ="Distance (km)") +
+                        scale_y_continuous(name ="Cumulative probability") +
+                        theme_bw() +
+                        theme(plot.title=element_text(hjust=0.5))
+
+grid.arrange(pdf_plt_tires, cdf_plt_tires, nrow = 1)
+```
+
+
+### Exercise 6b
+
+```{r}
+prob_less15000km <- ptires(15000/(10**4))
+cat("The probability for a tire to last less than 15000 km is", round(prob_less15000km*100,1), "%\n")
+```
+
+
+### Exercise 6c
+
+Sample 3000 random variables from the distribution and determine the mean value and the variance.
+```{r}
+tires_samples <- rtires(3000)
+
+# mean
+tires_mean <- mean(tires_samples)
+tires_mean_km <- tires_mean * 10**4
+
+# mean of squares
+tires_mean_squares <- mean(tires_samples*tires_samples)
+tires_mean_squares_km2 <- tires_mean_squares * 10**8
+
+# variance
+tires_variance <- tires_mean_squares - tires_mean**2
+tires_variance_km2 <- tires_mean_squares_km2 - tires_mean_km**2
+
+
+cat("The mean of the sampled lifetimes is", formatC(tires_mean_km, digits=2, format='e'), "km\n")
+cat("The variance of the sampled lifetimes is", formatC(tires_variance_km2, digits=2, format='e'), "km^2")
+```
+
+
+```{r, warning = FALSE}
+
+
+prob_plt_tires <- pdf_plt_tires +
+                  labs(fill = "Probabilities", color="Moments") +
+                  geom_area(data=pdf_tires,
+                            aes(x=ifelse(x<=15000, x, NA),
+                                fill = paste(c("P(d ≤ 15000 km) =", round(prob_less15000km,3)), collapse = " ")),
+                            alpha = 0.5) +
+                  geom_vline(aes(xintercept = tires_mean_km, color='Mean'), linetype='dashed') +
+                  scale_color_manual(values='grey40') +
+                  theme(legend.position = c(0.85,0.75), legend.box.background = element_rect(size=0.5))
+
+prob_plt_tires
+```

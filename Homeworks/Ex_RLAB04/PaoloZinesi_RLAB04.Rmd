@@ -1,0 +1,495 @@
+---
+title: "Laboratory Session - April 21, 2022"
+output: html_notebook
+editor_options:
+  chunk_output_type: inline
+---
+
+# Paolo Zinesi 2053062
+
+```{r}
+set.seed(12345)
+
+library(tidyverse)
+library(lubridate)
+library(gridExtra)
+
+options(dplyr.summarise.inform = FALSE)
+cbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+## Exercise 1
+
+Community Mobility Reports have been created with the aim to provide insights into what has changed in response to policies aimed at combating COVID-19. Data can be found at <https://www.google.com/covid19/mobility/>.
+
+The data show how visitors to (or time spent in) categorized places change compared to baseline days. A baseline day represents a normal value for that day of the week. The baseline day is the median value from the 5-week period Jan 3 -- Feb 6, 2020. To make the reports useful, categories have been used to group some of the places with similar characteristics for purposes of social distancing guidance. The following categories are available:
+
+-   Retail and Recreation, i.e. places like restaurants,cafes, shopping centers, theme parks,museums, libraries, and movie theaters
+
+-   Grocery and Pharmacy, i.e. grocery markets, food warehouses, farmers markets, specialty food shops, drug stores, and pharmacies
+
+-   Parks, i.e. national parks, public beaches, marinas, dog parks, plazas,and public gardens
+
+-   Transit Stations i.e. all public transport hubs such as subway, bus, and train stations
+
+-   Workplaces, i.e. places of work
+
+-   Residential, i.e. people's residence
+
+Select a couple of European countries of your choice and analyze the trends in the previous variables over time. Produce a plot of the data by averaging the observable over a period of one week and one month and quantify the impact of COVID- 19 restrictions on mobility sitations.
+
+The file "Global_Mobility_Report.csv" is in the same folder of this notebook.
+
+```{r}
+filename <- "Global_Mobility_Report.csv"
+countries <- c("IT", "GB", "FR", "DE")
+categories <- c("retail_and_recreation", "grocery_and_pharmacy", "parks", "transit_stations", "workplaces", "residential")
+fancy_categ <- c("retail_and_recreation" = "Retail and Recreation",
+                "grocery_and_pharmacy" = "Grocery and Pharmacy",
+                "parks" = "Parks",
+                "transit_stations" = "Transit Stations",
+                "workplaces" = "Workplaces",
+                "residential" = "Residential")
+
+
+# import data
+mobility_data <- read_csv(file = filename, show_col_types=FALSE)
+```
+
+```{r}
+# function that plots weekly averages of countries given a particular category
+plot_mobility_week_avg <- function(df, ctg, fancy_ctg, countries) {
+  
+  # preliminary tibble to store filtered data by countries and category
+  tmp <- df %>%
+         filter(country_region_code %in% countries & is.na(sub_region_1)) %>%
+          select(country_region_code=country_region_code,
+                 date=date,
+                 y = paste0(ctg,"_percent_change_from_baseline"))
+  
+  # create weeks field and average over weeks
+  tmp$week <- floor_date(tmp$date, "week")
+  
+  # average over weeks and countries
+  tmp <- group_by(tmp, week, country_region_code) %>%
+         summarise(y = mean(y, na.rm=TRUE)) %>%
+         ungroup()
+  
+  # plot
+  plt <- ggplot() +
+         geom_line(data = tmp, aes(x = week, y = y, color=country_region_code), size=0.5, alpha=1) +
+         labs(title=paste0(fancy_ctg," - Weekly averages"), color="Country") +
+         theme_bw() +
+         scale_y_continuous(name="% change from baseline") +
+         scale_x_date(name="Date") +
+         scale_colour_manual(values = cbPalette) +
+         theme(plot.title=element_text(hjust=0.5), legend.position = "top", legend.box.background = element_rect(size=0.5))
+  
+  return(plt)
+}
+```
+
+```{r}
+# function that plots monthly averages of countries given a particular category
+plot_mobility_month_avg <- function(df, ctg, fancy_ctg, countries) {
+  
+  # preliminary tibble to store filtered data by countries and category
+  tmp <- df %>%
+         filter(country_region_code %in% countries & is.na(sub_region_1)) %>%
+          select(country_region_code=country_region_code,
+                 date=date,
+                 y = paste0(ctg,"_percent_change_from_baseline"))
+  
+  # create weeks field and average over weeks
+  tmp$month <- floor_date(tmp$date, "month")
+  
+  # average over weeks and countries
+  tmp <- group_by(tmp, month, country_region_code) %>%
+         summarise(y = mean(y, na.rm=TRUE)) %>%
+         ungroup()
+  
+  # plot
+  plt <- ggplot() +
+         geom_line(data = tmp, aes(x = month, y = y, color=country_region_code), size=0.5, alpha=1) +
+         labs(title=paste0(fancy_ctg," - Monthly averages"), color="Country") +
+         scale_y_continuous(name="% change from baseline") +
+         scale_x_date(name="Date") +
+         scale_colour_manual(values = cbPalette) +
+         theme_bw() +
+         theme(plot.title=element_text(hjust=0.5), legend.position = "top", legend.box.background = element_rect(size=0.5))
+  
+  return(plt)
+}
+```
+
+Weekly-averaged plots.
+
+```{r, fig.height=5, fig.width=5}
+grid.arrange(plot_mobility_week_avg(df=mobility_data, ctg=categories[1], fancy_ctg=fancy_categ[categories[1]], countries=countries),
+             plot_mobility_week_avg(df=mobility_data, ctg=categories[2], fancy_ctg=fancy_categ[categories[2]], countries=countries),
+             plot_mobility_week_avg(df=mobility_data, ctg=categories[3], fancy_ctg=fancy_categ[categories[3]], countries=countries),
+             plot_mobility_week_avg(df=mobility_data, ctg=categories[4], fancy_ctg=fancy_categ[categories[4]], countries=countries),
+             plot_mobility_week_avg(df=mobility_data, ctg=categories[5], fancy_ctg=fancy_categ[categories[5]], countries=countries),
+             plot_mobility_week_avg(df=mobility_data, ctg=categories[6], fancy_ctg=fancy_categ[categories[6]], countries=countries),
+             ncol=2)
+
+```
+
+Monthly-averaged plots.
+
+```{r, fig.height=5, fig.width=5}
+grid.arrange(plot_mobility_month_avg(df=mobility_data, ctg=categories[1], fancy_ctg=fancy_categ[categories[1]], countries=countries),
+             plot_mobility_month_avg(df=mobility_data, ctg=categories[2], fancy_ctg=fancy_categ[categories[2]], countries=countries),
+             plot_mobility_month_avg(df=mobility_data, ctg=categories[3], fancy_ctg=fancy_categ[categories[3]], countries=countries),
+             plot_mobility_month_avg(df=mobility_data, ctg=categories[4], fancy_ctg=fancy_categ[categories[4]], countries=countries),
+             plot_mobility_month_avg(df=mobility_data, ctg=categories[5], fancy_ctg=fancy_categ[categories[5]], countries=countries),
+             plot_mobility_month_avg(df=mobility_data, ctg=categories[6], fancy_ctg=fancy_categ[categories[6]], countries=countries),
+             ncol=2)
+
+```
+
+In the plots above the percent changes in the countries Deutschland, France, Great Britain, Italy are shown.
+
+-   **Retail and Recreation**: after a big drop in the number of visitors during the months of March-April 2020 and another smaller drop in 2020-2021 winter, during summers the number of visitors returned to baseline values. Even though a drop in the visitors during 2021-2022 winter is visible in the data, its magnitude is negligible with respect to the previous winter. Similar to what happens for most of the categories, the curves of all the four countries are similar.
+-   **Grocery and Pharmacy**: also for this category it is visible a drop in visitors during March-April 2020 and winter 2020-2021. However, except for Great Britain, after the winter 2020-2021 the number of visitors is stable and approximately 10% \~ 15% above the baseline value.
+-   **Parks**: apart from the usual March-April 2020 drop, for the following months the number of parks visitors is not affected by pandemic (it has to be considered that the baseline refers to the 5-weeks winter period January 3 - February 6 2020, during which parks were not visited much).
+-   **Transit Stations**: the behavior of this curve is similar to the retail-and-recreation one's. The only visible difference is the number of visitors after January 2022, that depends on the political choices of each country. It is also interesting to notice how Great Britain reduced significantly and permanently its transit stations affluence. However, none of the considered countries reached again the baseline value (except for France after June 2021).
+-   **Workplaces**: similar for the transit stations, the visitors of workplaces never reached again the baseline value. While countries as Deutschland, France, Italy stabilized their workplaces affluence to -15% \~ -20% of the baseline value, Great Britain reached a smaller value of approximately -30% of the baseline value.
+-   **Residential**: as opposite to the workplaces situation, the number of people staying in residential areas always stay above the baseline value. A peak in the months of March-April 2020 and two smaller peaks in 2020-2021 winter and 2021-2022 winter are visible, while during the summers the number of people returned to the baseline value.
+
+## Exercise 2
+
+One of the first random number generator was proposed by von Neumann, the so-called middle square algorithm.
+
+Implement this type of generator and, given a fixed digit number input, square it an remove the leading and trailing digits, in order to return a number with the same number of digits as the original number.
+
+```{r}
+# starting point (can also be selected manually)
+N_generator <- as.numeric(readline("Insert an input number (with the same desired number of digits of the result): "))
+digits <- length(unlist(strsplit(as.character(N_generator),"")))
+cat("N_start =", N_generator, ", with", digits, "digits\n")
+
+N_samples <- as.numeric(readline("Insert the quantity of desired random numbers: "))
+samples <- c()
+
+for(i in 1:N_samples) {
+  # square number and convert to string
+  N_string <- unlist(strsplit(as.character(N_generator**2),""))
+  
+  # find number of digits to skip both at the beginning and at the end
+  digit_end <- floor((length(N_string) - digits) / 2.0)
+  digit_start <- length(N_string) - digits - digit_end
+  
+  # retrieve the middle values of the string and convert to number
+  N_generator <- as.numeric(paste(N_string[(digit_start+1) : (length(N_string)-digit_end)], collapse=""))
+  
+  # add new sample
+  samples <- c(samples, N_generator)
+}
+```
+
+```{r}
+hist(samples)
+```
+
+## Exercise 3
+
+A publishing company has recently launched a new journal. In order to determine how effective it is in reaching its possible audience, a market survey company selects a random sample of people from a possible target audience and interviews them. Out of 150 interviewed people, 29 have read the last issue of the journal.
+
+### Exercise 3a
+
+**What kind of distribution would you assume for y, the number of people that have seen the last issue of the journal?**
+
+The distribution might follow a Binomial distribution with:
+
+-   $y$ : number of people that read the journal
+-   $n$ : total number of people interviewed
+-   $p$ : probability that a person read the journal
+
+Each person, following this interpretation, performs a Bernoulli trial and the overall statistics describes the probability of having $y$ successes (i.e., $y$ people reading the journal) out of $n$ trials (i.e., $n$ people interviewed). The probability $p$ is supposed to be constant for any interviewed person. The likelihood would thus be $$\mathcal{L} \left( y\, |\, p,n,M \right) = \dbinom{n}{y} \, p^y \, (1-p)^{n-y}.$$
+
+### Exercise 3b
+
+**Assuming a uniform prior, what is the posterior distribution for y?**
+
+A uniform prior would not add any information to the posterior distribution, since the posterior will be proportional to the likelihood.
+
+In formulas, $$\mathcal{P} \left( p\, |\, y,n,M \right) \propto \mathcal{L} \left( y\, |\, p,n,M \right) \cdot \mathcal{U}(0,1).$$
+
+The proportionality factor $Z$ (the "Evidence") does not depend on $p$ and it can be computed from the normalization constraint. Finally, $$\mathcal{P} \left( p\, |\, y,n,M \right) = \dfrac{1}{Z}\, \mathcal{L} \left( y\, |\, p,n,M \right) \cdot \mathcal{U}(0,1).$$
+
+### Exercise 3c
+
+Plot both posterior and likelihood distributions functions.
+
+```{r, fig.width=4, fig.height=2}
+# compute likelihood and posterior
+p <- seq(0, 1, length.out=1001)
+dp <- 1/(length(p)-1)
+likl <- dbinom(x=29, size=150, prob=p)
+likl_df = data.frame(x=p, y=likl)
+norm_post <- likl / (sum(likl) * dp)
+post_df = data.frame(x=p, y=norm_post)
+
+# plot likelihood and posterior
+likl_plt <- ggplot(data = likl_df, aes(x=x, y=y)) +
+            labs(title="Likelihood") +
+            geom_line(data=likl_df, aes(x = x, y = y), color="steelblue", size=1) +
+            scale_x_continuous(name = "p") +
+            scale_y_continuous(name = "L (y | p,n,M)") +
+            theme_bw() +
+            theme(plot.title=element_text(hjust=0.5))
+
+post_plt <- ggplot(data = post_df, aes(x=x, y=y)) +
+            labs(title="Posterior") +
+            geom_line(data=post_df, aes(x = x, y = y), color="orange", size=1) +
+            scale_x_continuous(name = "p") +
+            scale_y_continuous(name = "P (p | n,y,M)") +
+            theme_bw() +
+            theme(plot.title=element_text(hjust=0.5))
+
+grid.arrange(likl_plt, post_plt, nrow=1)
+```
+
+## Exercise 4
+
+A coin is flipped n = 30 times with the following outcomes: $$\{ T, T, T, T, T, H, T, T, H, H, T, T, H, H, H, T, H, T, H, T, H, H, T, H, T, H, T, H, H, H \}$$
+
+```{r}
+# define vector of results
+# 0 = Tail (T)
+# 1 = Head (H)
+
+res <- c("T", "T", "T", "T", "T", "H", "T", "T", "H", "H", "T", "T", "H", "H", "H", "T", "H", "T", "H", "T", "H", "H", "T", "H", "T", "H", "T", "H", "H", "H")
+res <- unname(c("T"=0, "H"=1)[res])
+
+res
+```
+
+The distribution follows a Binomial distribution with:
+
+-   $r$ : number of heads (H) obtained in the repeated Bernoulli process
+-   $n$ : total number of tosses
+-   $p$ : probability of head in a coin toss
+
+The prior is denoted as $P \left( p\, |\, n,M \right)$, the likelihood is denoted as $\mathcal{L} \left( r\, |\, p,n,M \right)$ and the posterior is denoted as $\mathcal{P} \left( p\, |\, r,n,M \right)$. The Bayes theorem states that $$\mathcal{P} \left( p\, |\, r,n,M \right) = \dfrac{1}{Z}\, \mathcal{L} \left( r\, |\, p,n,M \right)\, P \left( p\, |\, n,M \right),$$ where $Z$ is a normalization constant.
+
+### Exercise 4a
+
+Assuming a flat prior and a beta prior, plot the likelihood, prior and posterior distributions for the data set.
+
+```{r}
+n <- length(res)
+r_H <- sum(res) # number of heads in total
+p <- seq(0, 1, length.out=1001)
+dp <- 1/(length(p)-1)
+
+# priors
+alpha <- 10; beta <- 10
+beta_prior <- dbeta(p, alpha, beta)
+beta_prior_df <- data.frame(x=p, y=beta_prior)
+
+fl_prior <- dunif(p, min=0, max=1)
+fl_prior_df <- data.frame(x=p, y=fl_prior)
+
+# likelihood
+likelihood <- dbinom(r_H, n, prob = p)
+likelihood_df <- data.frame(x=p, y=likelihood)
+
+# posteriors
+beta_posterior <- likelihood * beta_prior
+beta_posterior <- beta_posterior / (sum(beta_posterior) * dp)
+beta_posterior_df <- data.frame(x=p, y=beta_posterior)
+
+fl_posterior <- 1 * likelihood
+fl_posterior <- fl_posterior / (sum(fl_posterior) * dp)
+fl_posterior_df <- data.frame(x=p, y=fl_posterior)
+```
+
+```{r}
+# priors plot
+plt_priors <- ggplot(mapping=aes(x=x, y=y)) +
+              labs(title="Priors", colour="Prior") +
+              geom_line(data=beta_prior_df, aes(x = x, y = y, colour=paste0("Beta (",alpha,",",beta,")")), size=1) +
+              geom_line(data=fl_prior_df, aes(x = x, y = y, colour="Uniform"), size=1) +
+              scale_x_continuous(name = "p") +
+              scale_y_continuous(name = "f (p | n,M)") +
+              scale_colour_manual(values = cbPalette) +
+              theme_bw() +
+              theme(plot.title=element_text(hjust=0.5), legend.box.background = element_rect(size=0.4))
+
+plt_priors
+```
+
+```{r}
+# likelihood plot
+plt_likelihood <- ggplot(mapping=aes(x=x, y=y)) +
+                  labs(title="Likelihood") +
+                  geom_line(data=likelihood_df, aes(x = x, y = y), colour="steelblue", size=1) +
+                  scale_x_continuous(name = "p") +
+                  scale_y_continuous(name = "L (r | p,n,M)") +
+                  theme_bw() +
+                  theme(plot.title=element_text(hjust=0.5), legend.box.background = element_rect(size=0.4))
+
+plt_likelihood
+```
+
+```{r}
+# posteriors plot
+plt_posteriors <- ggplot(mapping=aes(x=x, y=y)) +
+                  labs(title="Posteriors", colour="Starting Prior") +
+                  geom_line(data=beta_posterior_df, aes(x = x, y = y, colour=paste0("Beta (",alpha,",",beta,")")), size=1) +
+                  geom_line(data=fl_posterior_df, aes(x = x, y = y, colour="Uniform"), size=1) +
+                  scale_x_continuous(name = "p") +
+                  scale_y_continuous(name = "P ( p | r,n,M )") +
+                  scale_colour_manual(values = cbPalette) +
+                  theme_bw() +
+                  theme(plot.title=element_text(hjust=0.5), legend.box.background = element_rect(size=0.4))
+
+plt_posteriors
+```
+
+### Exercise 4b
+
+Evaluate the most probable value for the coin probability p and, integrating the posterior probability distribution, give an estimate for a 95% credibility interval (CI).
+
+```{r}
+p_max_beta <- p[which.max(beta_posterior)]
+p_max_fl <- p[which.max(fl_posterior)]
+
+cat("Mode value of p (with beta prior) : ", p_max_beta)
+cat("\nMode value of p (with uniform prior) : ", p_max_fl)
+```
+
+Since the posteriors are symmetric, we can compute the credibility interval by looking for the 2.5% and 97.5% quantiles.
+
+```{r}
+beta_posterior_cum <- cumsum(beta_posterior) * dp
+fl_posterior_cum <- cumsum(fl_posterior) * dp
+
+# compute Credibility Intervals (CI)
+p1_beta_CI <- p[sum(beta_posterior_cum <= 0.025)] + 0.5*dp
+p2_beta_CI <- p[length(p)-sum(beta_posterior_cum >= 0.975)] + 0.5*dp
+p1_fl_CI <- p[sum(fl_posterior_cum <= 0.025)] + 0.5*dp
+p2_fl_CI <- p[length(p)-sum(fl_posterior_cum >= 0.975)] + 0.5*dp
+
+cat("Credibility interval (with beta prior):", p1_beta_CI, "≤ p ≤", p2_beta_CI)
+cat("\nCredibility interval (with uniform prior):", p1_fl_CI, "≤ p ≤", p2_fl_CI)
+```
+
+```{r, warning = FALSE}
+
+plt_CI <- plt_posteriors +
+          geom_vline(xintercept = c(p1_beta_CI,p2_beta_CI), colour=cbPalette[1], linetype="dashed") +
+          geom_area(data=beta_posterior_df,
+                    aes(x=ifelse(x>=p1_beta_CI & x<=p2_beta_CI, x, NA), fill = paste0("Beta (",alpha,",",beta,")")),
+                    alpha = 0.3) +
+          geom_vline(xintercept = c(p1_fl_CI, p2_fl_CI), colour=cbPalette[2], linetype="dashed") +
+          geom_area(data=fl_posterior_df,
+                            aes(x=ifelse(x>=p1_fl_CI & x<=p2_fl_CI, x, NA), fill = "Uniform"),
+                            alpha = 0.3) +
+          labs(title="Posteriors Credibility Intervals (CI)", fill="95% CI") +
+          scale_fill_manual(values=cbPalette)
+          
+plt_CI
+```
+
+### Exercise 4c
+
+Repeat the same analysis assuming a sequential analysis of the data. Show how the most probable value and the credibility interval change as a function of the number of coin tosses (i.e. from 1 to 30).
+
+```{r}
+# p grid
+p <- seq(0, 1, length.out=1001)
+dp <- 1/(length(p)-1)
+
+
+# sequential analysis runtime variables
+p_max_beta_seq <- c()
+p_max_fl_seq <- c()
+p1_beta_CI_seq <- c()
+p2_beta_CI_seq <- c()
+p1_fl_CI_seq <- c()
+p2_fl_CI_seq <- c()
+
+# priors
+alpha <- 10; beta <- 10
+beta_prior <- dbeta(p, alpha, beta)
+fl_prior <- dunif(p, min=0, max=1)
+
+# first iteration for sequential analysis
+beta_unnorm_posterior <- beta_prior
+fl_unnorm_posterior <- fl_prior
+
+
+# sequential analysis
+i <- 1
+for(i in 1:length(res)) {
+  
+  # likelihood
+  likelihood <- dbinom(res[i], 1, prob = p)
+  
+  # update posteriors (without normalization)
+  beta_unnorm_posterior <- likelihood * beta_unnorm_posterior
+  fl_unnorm_posterior <- likelihood * fl_unnorm_posterior
+  
+  # normalize posteriors
+  beta_posterior_seq <- beta_unnorm_posterior / (sum(beta_unnorm_posterior) * dp)
+  fl_posterior_seq <- fl_unnorm_posterior / (sum(fl_unnorm_posterior) * dp)
+  
+  # find most probable p's
+  p_max_beta_seq <- c(p_max_beta_seq, p[which.max(beta_posterior_seq)])
+  p_max_fl_seq <- c(p_max_fl_seq, p[which.max(fl_posterior_seq)])
+  
+  # cumulative posteriors
+  beta_posterior_cumseq <- cumsum(beta_posterior_seq) * dp
+  fl_posterior_cumseq <- cumsum(fl_posterior_seq) * dp
+  
+  # compute Credibility Intervals (CI)
+  p1_beta_CI_seq <- c(p1_beta_CI_seq, p[sum(beta_posterior_cumseq < 0.025)] + 0.5*dp)
+  p2_beta_CI_seq <- c(p2_beta_CI_seq, p[length(p)-sum(beta_posterior_cumseq > 0.975)] + 0.5*dp)
+  p1_fl_CI_seq <- c(p1_fl_CI_seq, p[sum(fl_posterior_cumseq < 0.025)] + 0.5*dp)
+  p2_fl_CI_seq <- c(p2_fl_CI_seq, p[length(p)-sum(fl_posterior_cumseq > 0.975)] + 0.5*dp)
+  
+}
+
+# create dfs (for plotting)
+p_max_beta_seqdf <- data.frame(x=1:length(p_max_beta_seq), y=p_max_beta_seq)
+p_max_fl_seqdf <- data.frame(x=1:length(p_max_fl_seq), y=p_max_fl_seq)
+p_beta_CI_seqdf <- data.frame(x=1:length(p1_beta_CI_seq), y1=p1_beta_CI_seq, y2=p2_beta_CI_seq)
+p_fl_CI_seqdf <- data.frame(x=1:length(p1_fl_CI_seq), y1=p1_fl_CI_seq, y2=p2_fl_CI_seq)
+
+```
+
+Plot evolution of maximum probability and Credibility Interval (CI) for both the posteriors.
+
+```{r}
+plt_CI_seq <-  ggplot() +
+               geom_line(data=p_max_beta_seqdf, aes(x=x, y=y, colour=paste0("Beta (",alpha,",",beta,")")), size=0.5, alpha=1) +
+               geom_point(data=p_max_beta_seqdf, aes(x=x, y=y, colour=paste0("Beta (",alpha,",",beta,")")), size=2, alpha=1) +
+               geom_line(data=p_beta_CI_seqdf, aes(x=x, y=y1), size=0.5, alpha=0.5, colour=cbPalette[1]) +
+               geom_line(data=p_beta_CI_seqdf, aes(x=x, y=y2), size=0.5, alpha=0.5, colour=cbPalette[1]) +
+               geom_line(data=p_max_fl_seqdf, aes(x=x, y=y, colour="Uniform"), size=0.5, alpha=1) +
+               geom_point(data=p_max_fl_seqdf, aes(x=x, y=y, colour="Uniform"), size=2, alpha=1) +
+               geom_line(data=p_fl_CI_seqdf, aes(x=x, y=y1), size=0.5, alpha=0.5, colour=cbPalette[2]) +
+               geom_line(data=p_fl_CI_seqdf, aes(x=x, y=y2), size=0.5, alpha=0.5, colour=cbPalette[2]) +
+               geom_ribbon(data = p_beta_CI_seqdf, aes(x, ymin = y1, ymax = y2, fill= paste0("Beta (",alpha,",",beta,")")), alpha = 0.3) +
+               geom_ribbon(data = p_fl_CI_seqdf, aes(x, ymin = y1, ymax = y2, fill="Uniform"), alpha = 0.3) +
+               labs(title="Most probable p and CI - Sequential analysis", fill="95% CI", colour="Most probable p") +
+               scale_y_continuous(name="p", limits = c(0,1)) +
+               scale_x_continuous(name="Number of coin tosses") +
+               scale_colour_manual(values = cbPalette) +
+               scale_fill_manual(values = cbPalette) +
+               theme_bw() +
+               theme(plot.title=element_text(hjust=0.5), legend.box.background = element_rect(size=0.5))
+
+plt_CI_seq
+```
+
+### Exercise 4d
+
+**Do you get a different result, by analyzing the data sequentially with respect to a one-step analysis (i.e. considering all the data as a whole) ?**
+
+The results of the sequential and the one-step analysis are the same (the most probable value of the parameter p is 0.5 for both the prior choices). This equality is valid in general, since the posterior of an iteration becomes the prior of the next iteration. In particular, to compute the posterior at one step it is sufficient to multiply the prior of that step (i.e., the posterior of the previous step) by the likelihood of that step, that depends on the outcome considered. The result of the multiplication needs to be normalized to obtain a probability distribution.
+
+Considering the outcomes sequentially is equivalent to considering them in one single dataset, because the likelihood of the total dataset in the one-step analysis is equal to the product of the single-outcome likelihoods.

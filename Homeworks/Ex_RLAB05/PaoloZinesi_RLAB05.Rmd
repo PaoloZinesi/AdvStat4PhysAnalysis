@@ -1,0 +1,745 @@
+---
+title: "Laboratory Session - April 28, 2022"
+output: html_notebook
+editor_options:
+  chunk_output_type: inline
+---
+
+# Paolo Zinesi 2053062
+
+```{r}
+set.seed(12345)
+
+library(tidyverse)
+library(gridExtra)
+
+cbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+## Exercise 1
+
+The number of particles emitted by a radioactive source during a fixed interval of time (∆t = 10 s) follows a Poisson distribution on the parameter $\mu$. The number of particles observed during consecutive time intervals is:
+$$\{ 4, 1, 3, 1, 3 \}$$
+
+We use priors that are conjugate to the likelihood. For a Poisson process the conjugate prior is a Gamma distribution, which PDF is $\text{Gamma} \left(y\,|\,\alpha,\lambda \right) = \dfrac{\lambda^{\alpha}}{\Gamma{(\alpha)}}\, y^{\alpha-1}\, e^{-\lambda\, y}$. If the prior has the form $\text{Gamma} \left(\alpha,\lambda \right)$ and we have $n$ observations with results $\{y_i\}$, the posterior has the form $\text{Gamma}\left(\alpha + \sum_i y_i, \,\lambda + n \right)$. The mean of a $\text{Gamma} \left(\alpha,\lambda \right)$ distribution is $\dfrac{\alpha}{\lambda}$ and the variance is $\dfrac{\alpha}{\lambda^2}$
+
+
+```{r}
+res <- c(4, 1, 3, 1, 3)
+mu <- seq(0, 10, length.out=1000)
+N_dl <- length(mu) - 1
+dl <- (max(mu) - min(mu)) / N_dl
+```
+
+### Exercise 1a
+
+Suppose a uniform prior distribution for the parameter $\mu$.
+Determine and draw the posterior distribution for $\mu$, given the data $D=\{y_i\}$.
+
+A uniform prior has the form $\text{Gamma} \left(1,0 \right)$, so the posterior has the form $\text{Gamma} \left(1+\sum_i y_i, \,0 + n \right)$.
+
+```{r}
+# prior
+log_prior <- ifelse(mu>=0, 0, -Inf)
+
+# likelihood
+log_likl <- 0
+for (r_ in res) {
+  log_likl <- log_likl + dpois(x=r_, lambda=mu, log=TRUE)
+}
+
+# posterior
+post_U <- exp(log_likl + log_prior)
+post_U <- post_U / (dl * sum(post_U))
+
+# plot posterior
+post_U_plt <- ggplot() +
+              labs(title=paste0("Posterior = Gamma(", 1+sum(res),",", length(res),")", collapse=""), subtitle="Corresponding to a uniform prior") +
+              geom_line(data = data.frame(mu=mu, post=post_U), aes(x=mu, y=post), color="steelblue", size=1) +
+              scale_y_continuous(name = expression(paste("P( ", mu, " | D,M )"))) +
+              scale_x_continuous(name = expression(mu)) +
+              theme_bw() +
+              theme(plot.title=element_text(hjust=0.5), plot.subtitle=element_text(hjust=0.5))
+post_U_plt
+```
+
+
+
+Evaluate mean, median and variance, both analytically and numerically in R.
+```{r}
+mean_num_U <- sum(mu*post_U) * dl
+median_num_U <- mu[sum(cumsum(post_U * dl) <= 0.5) + 1]
+var_num_U <- sum(mu * mu * post_U * dl) - (mean_num_U * mean_num_U)
+mean_an_U <- (1 + sum(res)) / length(res)
+median_an_U <- qgamma(0.5, shape=1+sum(res), rate=length(res))
+var_an_U <- (1 + sum(res)) / length(res)**2
+
+cat("Mean numerical = ", mean_num_U, "; ", "Mean analytical = ", mean_an_U, "\n", sep="")
+cat("Median numerical = ", median_num_U, "; ", "Median analytical = ", median_an_U, "\n", sep="")
+cat("Variance numerical = ", var_num_U, "; ", "Variance analytical = ", var_an_U, "\n", sep="")
+```
+
+```{r}
+post_U_plt <- post_U_plt +
+              geom_vline(mapping=aes(xintercept = mean_an_U, color="Mean"), linetype="dashed", size=0.5) +
+              geom_vline(mapping=aes(xintercept = median_an_U, color="Median"), linetype="dashed", size=0.5) +
+              scale_color_manual(values = cbPalette, name="Values")
+post_U_plt
+```
+
+
+
+### Exercise 1b
+
+Suppose a Jeffrey’s prior for the parameter $\mu$.
+Determine and draw the posterior distribution for $\mu$, given the data.
+
+A Jeffrey's prior has the form $\text{Gamma} \left(\dfrac{1}{2},0 \right)$, so the posterior has the form $\text{Gamma} \left(\dfrac{1}{2}+\sum_i y_i, \,0 + n \right)$.
+
+```{r}
+# prior
+log_prior <- ifelse(mu > 0, -0.5*log(mu), -Inf)
+
+# likelihood
+log_likl <- 0
+for (r_ in res) {
+  log_likl <- log_likl + dpois(x=r_, lambda=mu, log=TRUE)
+}
+
+# posterior
+post_J <- exp(log_likl + log_prior)
+post_J <- post_J / (dl * sum(post_J))
+
+# plot posterior
+post_J_plt <- ggplot() +
+              labs(title=paste0("Posterior = Gamma(", 0.5+sum(res),",", length(res),")", collapse=""), subtitle="Corresponding to a Jeffrey's prior") +
+              geom_line(data = data.frame(mu=mu, post=post_J), aes(x=mu, y=post), color="steelblue", size=1) +
+              scale_y_continuous(name = expression(paste("P( ", mu, " | D,M )"))) +
+              scale_x_continuous(name = expression(mu)) +
+              theme_bw() +
+              theme(plot.title=element_text(hjust=0.5), plot.subtitle=element_text(hjust=0.5))
+post_J_plt
+```
+
+
+Evaluate mean, median and variance, both analytically and numerically in R.
+```{r}
+mean_num_J <- sum(mu*post_J) * dl
+median_num_J <- mu[sum(cumsum(post_J * dl) <= 0.5) + 1]
+var_num_J <- sum(mu * mu * post_J * dl) - (mean_num_J * mean_num_J)
+mean_an_J <- (0.5 + sum(res)) / length(res)
+median_an_J <- qgamma(0.5, shape=0.5+sum(res), rate=length(res))
+var_an_J <- (0.5 + sum(res)) / length(res)**2
+
+cat("Mean numerical = ", mean_num_J, "; ", "Mean analytical = ", mean_an_J, "\n", sep="")
+cat("Median numerical = ", median_num_J, "; ", "Median analytical = ", median_an_J, "\n", sep="")
+cat("Variance numerical = ", var_num_J, "; ", "Variance analytical = ", var_an_J, "\n", sep="")
+```
+
+
+```{r}
+post_J_plt <- post_J_plt +
+              geom_vline(mapping=aes(xintercept = mean_an_J, color="Mean"), linetype="dashed", size=0.5) +
+              geom_vline(mapping=aes(xintercept = median_an_J, color="Median"), linetype="dashed", size=0.5) +
+              scale_color_manual(values = cbPalette, name="Values")
+post_J_plt
+```
+
+### Exercise 1c
+Evaluate a 95% credibility interval for the results obtained with both priors. Compare the result with that obtained using a normal approximation for the posterior distribution, with the same mean and standard deviation.
+
+```{r}
+# credibility interval for both posteriors
+CI_U <- c(qgamma(0.025, shape=1+sum(res), rate=length(res)), qgamma(0.975, shape=1+sum(res), rate=length(res)))
+CI_U_gauss <- c(qnorm(0.025, mean=mean_an_U, sd=sqrt(var_an_U)), qnorm(0.975, mean=mean_an_U, sd=sqrt(var_an_U)))
+CI_J <- c(qgamma(0.025, shape=0.5+sum(res), rate=length(res)), qgamma(0.975, shape=0.5+sum(res), rate=length(res)))
+CI_J_gauss <- c(qnorm(0.025, mean=mean_an_J, sd=sqrt(var_an_J)), qnorm(0.975, mean=mean_an_J, sd=sqrt(var_an_J)))
+
+cat("Credibility interval corresponding to a uniform prior:", CI_U, "\n")
+cat("Credibility interval corresponding to a uniform prior with a normal approximation:", CI_U_gauss, "\n")
+cat("Credibility interval corresponding to a Jeffrey's prior:", CI_J, "\n")
+cat("Credibility interval corresponding to a Jeffrey's prior with a normal approximation:", CI_J_gauss, "\n")
+```
+
+
+```{r, warning=FALSE, fig.width=5, fig.height=3}
+post_U_plt <- post_U_plt + geom_area(data=data.frame(mu=mu, post=post_U),
+                                     aes(x=ifelse(mu>=CI_U[1] & mu<=CI_U[2], mu, NA), y=post, fill="Uniform"),
+                                     alpha = 0.2) +
+                           scale_fill_manual(values="steelblue", name="95% CI")
+post_J_plt <- post_J_plt + geom_area(data=data.frame(mu=mu, post=post_J),
+                                     aes(x=ifelse(mu>=CI_J[1] & mu<=CI_J[2], mu, NA), y=post, fill="Jeffrey"),
+                                     alpha = 0.2) +
+                           scale_fill_manual(values="steelblue", name="95% CI")
+
+grid.arrange(post_U_plt, post_J_plt, nrow=2)
+```
+
+
+## Exercise 2
+
+Given the problem of the lightouse discussed last week, study the case in which both the position along the shore ($\alpha$) and the distance out at sea ($\beta$) are unknown.
+
+We generate random $\theta \in \left[ -\dfrac{\pi}{2}, \dfrac{\pi}{2} \right]$ and we calculate the corresponding $x$ following the relation
+$$x_k = \alpha + \beta\, \tan{\theta_k}.$$
+
+The prior considered is constant in the rectangle $(\alpha,\beta) \in \left[ -2\, \text{km}, 2\, \text{km} \right] \times \left[ 0\, \text{km}, 5\, \text{km} \right]$ and null elsewhere. The posterior of the problem is thus equivalent to the likelihood in this range and null elsewhere. The log-likelihood used for this problem is 
+$$\log{\mathcal{L}(D\, |\, \alpha,\beta,M)} = \sum_i \log \left[ \dfrac{\beta}{\beta^2 + (x_i - \alpha)^2} \right]$$ 
+where $D=\{x_i\}$ is the set of x-values measured.
+
+```{r}
+# fix true alpha and beta
+alpha_true <- 1 #km
+beta_true <- 1 #km
+alpha_min <- -2 #km
+alpha_max <- 2 #km
+beta_max <- 5 #km
+
+# define grid
+alpha0 <- seq(alpha_min, alpha_max, length.out=1001)
+d_alpha <- (alpha_max - alpha_min) / 1000
+beta0 <- seq(0, beta_max, length.out=1001)
+d_beta <- (beta_max - 0) / 1000
+grid0 <- expand_grid(alpha=alpha0, beta=beta0)
+
+# draw samples
+n_max <- 1000
+lighthouse_samples <- alpha_true + beta_true * tan(runif(n_max, min=-pi/2, max=pi/2))
+```
+
+
+```{r}
+# function that computes posteriors for the lighthouse problem
+compute_posterior_lighthouse <- function(grid_, da_, db_, samples_, marginalize="") {
+
+  # log-posterior
+  post_df <- grid_ %>% mutate(log_post = 0)
+  for (x_ in samples_) {
+    post_df <- post_df %>%
+               mutate(log_post = log_post + log(beta/(beta**2 + (x_ - alpha)**2)))
+  }
+  post_df <- post_df %>% mutate(log_post = log_post - max(log_post))
+
+  # unnormalized posterior
+  post_df$post <- exp(post_df$log_post)
+
+
+  if(marginalize=="alpha") {
+
+    # marginalize over beta and normalize the marginalized posterior
+    post_alpha <- post_df %>% group_by(alpha) %>% summarise(post = sum(post, na.rm = TRUE))
+    post_alpha$post <- post_alpha$post / (sum(post_alpha$post) * da_)
+
+    return(post_alpha)
+  }
+  else if (marginalize=="beta") {
+
+    # marginalize over alpha and normalize the marginalized posterior
+    post_beta <- post_df %>% group_by(beta) %>% summarise(post = sum(post, na.rm = TRUE))
+    post_beta$post <- post_beta$post / (sum(post_beta$post) * db_)
+
+    return(post_beta)
+  }
+  else {
+
+    # no marginalization
+    return(post_df)
+  }
+
+}
+```
+
+
+
+```{r, fig.height=5, fig.width=6}
+plt_base <- ggplot() +
+            geom_vline(mapping=aes(xintercept = alpha_true), colour="firebrick", linetype="dashed", size=1) +
+            scale_x_continuous(name="Alpha") +
+            scale_y_continuous(name=expression(paste("P( ", alpha, " | D,M )"))) +
+            theme_bw() +
+            theme(plot.title=element_text(hjust=0.5))
+
+
+# plot alpha posterior
+grid.arrange(
+  plt_base + geom_line(data=compute_posterior_lighthouse(grid0, d_alpha, d_beta, lighthouse_samples[1], marginalize = "alpha"),
+                       aes(x=alpha, y=post)) +
+             labs(title="Marginalized posterior with 1 sample"),
+  plt_base + geom_line(data=compute_posterior_lighthouse(grid0, d_alpha, d_beta, lighthouse_samples[1:2], marginalize = "alpha"),
+                       aes(x=alpha, y=post)) +
+             labs(title="Marginalized posterior with 2 samples"),
+  plt_base + geom_line(data=compute_posterior_lighthouse(grid0, d_alpha, d_beta, lighthouse_samples[1:5], marginalize = "alpha"),
+                       aes(x=alpha, y=post)) +
+             labs(title="Marginalized posterior with 5 samples"),
+  plt_base + geom_line(data=compute_posterior_lighthouse(grid0, d_alpha, d_beta, lighthouse_samples[1:10], marginalize = "alpha"),
+                       aes(x=alpha, y=post)) +
+             labs(title="Marginalized posterior with 10 samples"),
+  plt_base + geom_line(data=compute_posterior_lighthouse(grid0, d_alpha, d_beta, lighthouse_samples[1:20], marginalize = "alpha"),
+                       aes(x=alpha, y=post)) +
+             labs(title="Marginalized posterior with 20 samples"),
+  plt_base + geom_line(data=compute_posterior_lighthouse(grid0, d_alpha, d_beta, lighthouse_samples[1:50], marginalize = "alpha"),
+                       aes(x=alpha, y=post)) +
+             labs(title="Marginalized posterior with 50 samples"),
+  plt_base + geom_line(data=compute_posterior_lighthouse(grid0, d_alpha, d_beta, lighthouse_samples[1:100], marginalize = "alpha"),
+                       aes(x=alpha, y=post)) +
+             labs(title="Marginalized posterior with 100 samples"),
+  nrow=4)
+
+```
+
+```{r, fig.height=5, fig.width=6}
+plt_base <- ggplot() +
+            geom_vline(mapping=aes(xintercept = beta_true), colour="firebrick", linetype="dashed", size=1) +
+            scale_x_continuous(name="Beta") +
+            scale_y_continuous(name=expression(paste("P( ", beta, " | D,M )"))) +
+            theme_bw() +
+            theme(plot.title=element_text(hjust=0.5))
+
+
+# plot beta posterior
+grid.arrange(
+  plt_base + geom_line(data=compute_posterior_lighthouse(grid0, d_alpha, d_beta, lighthouse_samples[1], marginalize = "beta"),
+                       aes(x=beta, y=post)) +
+             labs(title="Marginalized posterior with 1 sample"),
+  plt_base + geom_line(data=compute_posterior_lighthouse(grid0, d_alpha, d_beta, lighthouse_samples[1:2], marginalize = "beta"),
+                       aes(x=beta, y=post)) +
+             labs(title="Marginalized posterior with 2 samples"),
+  plt_base + geom_line(data=compute_posterior_lighthouse(grid0, d_alpha, d_beta, lighthouse_samples[1:5], marginalize = "beta"),
+                       aes(x=beta, y=post)) +
+             labs(title="Marginalized posterior with 5 samples"),
+  plt_base + geom_line(data=compute_posterior_lighthouse(grid0, d_alpha, d_beta, lighthouse_samples[1:10], marginalize = "beta"),
+                       aes(x=beta, y=post)) +
+             labs(title="Marginalized posterior with 10 samples"),
+  plt_base + geom_line(data=compute_posterior_lighthouse(grid0, d_alpha, d_beta, lighthouse_samples[1:20], marginalize = "beta"),
+                       aes(x=beta, y=post)) +
+             labs(title="Marginalized posterior with 20 samples"),
+  plt_base + geom_line(data=compute_posterior_lighthouse(grid0, d_alpha, d_beta, lighthouse_samples[1:50], marginalize = "beta"),
+                       aes(x=beta, y=post)) +
+             labs(title="Marginalized posterior with 50 samples"),
+  plt_base + geom_line(data=compute_posterior_lighthouse(grid0, d_alpha, d_beta, lighthouse_samples[1:100], marginalize = "beta"),
+                       aes(x=beta, y=post)) +
+             labs(title="Marginalized posterior with 100 samples"),
+  nrow=4)
+```
+
+
+
+
+```{r, fig.height=7, fig.width=5}
+plt_base <- ggplot() +
+            scale_x_continuous(name="Alpha") +
+            scale_y_continuous(name="Beta") +
+            theme(plot.title=element_text(hjust=0.5)) +
+            theme_bw()
+
+grid.arrange(
+  plt_base + geom_contour_filled(data=compute_posterior_lighthouse(grid0, d_alpha, d_beta, lighthouse_samples[1:2]),
+                    mapping = aes(x=alpha, y=beta, z=post), show.legend=FALSE) +
+             geom_vline(mapping=aes(xintercept = alpha_true), colour="firebrick", linetype="dashed", size=1) +
+             geom_hline(mapping=aes(yintercept = beta_true), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Posterior with 2 samples") +
+             theme(plot.title=element_text(hjust=0.5)),
+  plt_base + geom_contour_filled(data=compute_posterior_lighthouse(grid0, d_alpha, d_beta, lighthouse_samples[1:5]),
+                    mapping = aes(x=alpha, y=beta, z=post), show.legend=FALSE) +
+             geom_vline(mapping=aes(xintercept = alpha_true), colour="firebrick", linetype="dashed", size=1) +
+             geom_hline(mapping=aes(yintercept = beta_true), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Posterior with 5 samples") +
+             theme(plot.title=element_text(hjust=0.5)),
+  plt_base + geom_contour_filled(data=compute_posterior_lighthouse(grid0, d_alpha, d_beta, lighthouse_samples[1:10]),
+                    mapping = aes(x=alpha, y=beta, z=post), show.legend=FALSE) +
+             geom_vline(mapping=aes(xintercept = alpha_true), colour="firebrick", linetype="dashed", size=1) +
+             geom_hline(mapping=aes(yintercept = beta_true), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Posterior with 10 samples") +
+             theme(plot.title=element_text(hjust=0.5)),
+  plt_base + geom_contour_filled(data=compute_posterior_lighthouse(grid0, d_alpha, d_beta, lighthouse_samples[1:20]),
+                    mapping = aes(x=alpha, y=beta, z=post), show.legend=FALSE) +
+             geom_vline(mapping=aes(xintercept = alpha_true), colour="firebrick", linetype="dashed", size=1) +
+             geom_hline(mapping=aes(yintercept = beta_true), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Posterior with 20 samples") +
+             theme(plot.title=element_text(hjust=0.5)),
+  plt_base + geom_contour_filled(data=compute_posterior_lighthouse(grid0, d_alpha, d_beta, lighthouse_samples[1:50]),
+                    mapping = aes(x=alpha, y=beta, z=post), show.legend=FALSE) +
+             geom_vline(mapping=aes(xintercept = alpha_true), colour="firebrick", linetype="dashed", size=1) +
+             geom_hline(mapping=aes(yintercept = beta_true), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Posterior with 50 samples") +
+             theme(plot.title=element_text(hjust=0.5)),
+  plt_base + geom_contour_filled(data=compute_posterior_lighthouse(grid0, d_alpha, d_beta, lighthouse_samples[1:100]),
+                    mapping = aes(x=alpha, y=beta, z=post), show.legend=FALSE) +
+             geom_vline(mapping=aes(xintercept = alpha_true), colour="firebrick", linetype="dashed", size=1) +
+             geom_hline(mapping=aes(yintercept = beta_true), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Posterior with 100 samples") +
+             theme(plot.title=element_text(hjust=0.5)),
+  nrow=3)
+```
+
+```{r}
+# find most probables (alpha,beta) for each iteration
+max_prob_alpha <- c()
+max_prob_beta <- c()
+joint_post_df <- grid0 %>% mutate(log_post = 0)
+
+for(x_ in lighthouse_samples[1:100]) {
+  joint_post_df <- joint_post_df %>%
+                   mutate(log_post = log_post + log(beta/(beta**2 + (x_ - alpha)**2)))
+  
+  max_indx <- which.max(joint_post_df$log_post)
+  max_prob_alpha <- c(max_prob_alpha, joint_post_df[[max_indx, "alpha"]])
+  max_prob_beta <- c(max_prob_beta, joint_post_df[[max_indx, "beta"]])
+}
+
+# plot succession of most probable values
+plt_max_prob_evol <- ggplot(data=data.frame(Alpha=max_prob_alpha, Beta=max_prob_beta),
+                            mapping=aes(x=Alpha, y=Beta)) +
+                     geom_path() +
+                     geom_vline(mapping=aes(xintercept = alpha_true), colour="firebrick", linetype="dashed", size=1) +
+                     geom_hline(mapping=aes(yintercept = beta_true), colour="firebrick", linetype="dashed", size=1) +
+                     geom_point() +
+                     geom_point(aes(x=alpha_true, y=beta_true), colour="firebrick") +
+                     geom_text(data=data.frame(alpha=max_prob_alpha[1:10], beta=max_prob_beta[1:10], labels=1:10),
+                               mapping=aes(x=alpha+0.05, y=beta+0.05, label = labels)) +
+                     labs(title=expression(paste("Evolution of the most probables (", alpha, " , ", beta, ") as a function of number of data samples"))) +
+                     theme_bw() +
+                     theme(plot.title=element_text(hjust=0.5))
+                     
+
+plt_max_prob_evol
+```
+
+**As expected, by updating iteratively the posterior with the data, the posterior distribution becomes more and more peaked around the true value of the parameters $\alpha, \beta$.**
+
+
+
+## Exercise 3
+
+Given the Signal over Background example discussed last week, analyze and discuss the following cases.
+
+The signal is modeled by the following function:
+
+$$ S\,(x\,|\,A,B,x_0,w,\Delta t) = \Delta t \left( A\, e^{-\dfrac{1}{2} \left(\dfrac{x-x_0}{w}\right)^2 } +B \right).$$
+
+The prior considered is constant in the rectangle $(A,B) \in \left[ 0, 5 \right] \times \left[ 0.5, 1.5 \right]$ and null elsewhere. The posterior of the problem is thus equivalent to the likelihood in this range and null elsewhere. The log-likelihood used for this problem is 
+$$\log{\mathcal{L}(D\, |\, A,B,M)} = \sum_i \left[ N_i \ln{S\,(x_i\,|\,A,B)} - S\,(x_i\,|\,A,B) - \ln{(N_i!)} \right]$$
+where $D=\{N_i\}$ is the set of counts measured in the positions $\{x_i\}$.
+```{r}
+# (starting) model definitions
+x0 <- 0
+w <- 1
+A_true <- 2
+B_true <- 1
+dt <- 5
+x_grid <- seq(-7*w, 7*w, by=0.5*w)
+
+# define grid for parameters A,B
+A_max <- 5
+B_min <- 0.5
+B_max <- 1.5
+A0 <- seq(0, A_max, length.out=1001)
+dA <- (A_max - 0) / 1000
+B0 <- seq(B_min, B_max, length.out=1001)
+dB <- (B_max - B_min) / 1000
+grid0 <- expand_grid(A=A0, B=B0)
+
+
+# signal definition
+signal <- function(x, A, B, x0, w, dt) {
+  dt * (A * exp(-0.5*((x-x0)/w)**2) + B)
+}
+
+# true signal
+signal_true_df <- tibble(x=x_grid, Signal=signal(x_grid, A_true, B_true, x0, w, dt))
+plt_SB <- ggplot() +
+          geom_line(data=signal_true_df, mapping=aes(x=x, y=Signal)) +
+          labs(title="Real signal vs measured signal with A/B=2 and w=1") +
+          scale_y_continuous(name = expression(paste("Signal (x | A, B, ", x[0], ", w, ", Delta, "t, M)"))) +
+          theme_bw() +
+          theme(plot.title=element_text(hjust=0.5))
+          
+
+# sample signals
+signal_samples <- rpois(length(x_grid), signal_true_df$Signal)
+signal_samples_df <- tibble(x=x_grid, N=signal_samples)
+plt_SB <- plt_SB +
+          geom_col(data=signal_samples_df, mapping=aes(x=x, y=N), alpha=0.3)
+
+plt_SB
+```
+
+
+
+```{r}
+# function that computes the posterior for the Signal/Background problem,
+# it computes the posterior for different values of the parameters
+# w, A_true, B_true, x0, dt
+compute_posterior_SB <- function(x0=0, w=1, A_true=2, B_true=1, dt=5,
+                                 A_max=5, B_min=0.5, B_max=1.5,
+                                 marginalize="") {
+  
+  # reproducibility
+  set.seed(12345)
+  
+  # define grid
+  grid_x_ <- seq(-7*w, 7*w, by=0.5*w)
+  grid_ <- expand_grid(A=seq(0, A_max, length.out=1001), B=seq(B_min, B_max, length.out=1001))
+  dA_ <- (A_max - 0) / 1000
+  dB_ <- (B_max - B_min) / 1000
+  
+  
+  # true signal
+  signal_true <- signal(grid_x_, A_true, B_true, x0, w, dt)
+  
+  # sample signals
+  samples_ <- rpois(n=length(grid_x_), lambda=signal_true)
+  
+  
+  
+  # log-posterior
+  post_df <- grid_ %>% mutate(log_post = 0)
+  for (i in 1:length(samples_)) {
+    post_df <- post_df %>%
+               mutate(log_post = log_post + dpois(x=samples_[i], lambda = signal(grid_x_[i], A, B, x0=x0, w=w, dt=dt), log=TRUE))
+  }
+  post_df <- post_df %>% mutate(log_post = log_post - max(log_post))
+
+  # unnormalized posterior
+  post_df$Posterior <- exp(post_df$log_post)
+  
+  
+  
+  if(marginalize=="A") {
+
+    # marginalize over B and normalize the marginalized posterior
+    post_A <- post_df %>% group_by(A) %>% summarise(Posterior = sum(Posterior, na.rm = TRUE))
+    post_A$Posterior <- post_A$Posterior / (sum(post_A$Posterior) * dA_)
+
+    return(post_A)
+  }
+  else if (marginalize=="B") {
+
+    # marginalize over A and normalize the marginalized posterior
+    post_B <- post_df %>% group_by(B) %>% summarise(Posterior = sum(Posterior, na.rm = TRUE))
+    post_B$Posterior <- post_B$Posterior / (sum(post_B$Posterior) * dB_)
+
+    return(post_B)
+  }
+  else {
+
+    # no marginalization
+    return(post_df)
+  }
+  
+}
+```
+
+
+### Exercise 3a
+Vary the sampling resolution used to generate the data, keeping the same sampling range.
+Change the resolution w = {0.1, 0.25, 1, 2, 3} and check the effect on the results.
+
+
+```{r}
+plot_signal <- function(x0=0, w=1, A_true=2, B_true=1, dt=5,
+                        A_max=5, B_min=0.5, B_max=1.5, xlim=c(-8*w,8*w)) {
+  
+  # reproducibility
+  #set.seed(12345)
+  
+  # define grid
+  grid_x_ <- seq(-7*w, 7*w, by=0.5*w)
+  
+  # true signal
+  signal_true <- signal(grid_x_, A_true, B_true, x0, w, dt)
+  signal_true_df <- tibble(x=grid_x_, Signal=signal_true)
+  
+  # sample signals
+  signal_samples <- rpois(length(grid_x_), signal_true_df$Signal)
+  signal_samples_df <- tibble(x=grid_x_, N=signal_samples)
+  
+  
+  
+  # plot
+  plt <- ggplot() +
+         geom_line(data=signal_true_df, mapping=aes(x=x, y=Signal)) +
+         geom_col(data=signal_samples_df, mapping=aes(x=x, y=N), alpha=0.3) +
+         labs(title=paste0("Real signal vs measured signal with A/B=", A_true/B_true, " and w=", w, collapse = "")) +
+         scale_x_continuous(limits=xlim) +
+         scale_y_continuous(name = expression(paste("Signal (x | A, B, ", x[0], ", w, ", Delta, "t, M)"))) +
+         theme_bw() +
+         theme(plot.title=element_text(hjust=0.5))
+  
+  return(plt)
+}
+```
+
+
+
+
+```{r, fig.height=5, fig.width=6}
+# plot real signals vs measured signal as a function of w
+grid.arrange(
+plot_signal(w=0.1, A_true=2, B_true=1, xlim=c(-22,22)),
+plot_signal(w=0.25, A_true=2, B_true=1, xlim=c(-22,22)),
+plot_signal(w=1, A_true=2, B_true=1, xlim=c(-22,22)),
+plot_signal(w=2, A_true=2, B_true=1, xlim=c(-22,22)),
+plot_signal(w=3, A_true=2, B_true=1, xlim=c(-22,22)),
+nrow=3)
+```
+
+
+**As it is possible to see from the plots above, the change of the scale parameter $w$ if the sampling range remains fixed affects the spatial width of the signal but not the parameters $A,B$. The plots below show the independence of $A,B$ on $w$ when the sampling range is fixed. This effect occurs because the signal depends only on the ratio $x/w$ ($x_0=0$) and not singularly on the two variables. Since the x-grid is proportional to $w$, the signal generated are exactly the same. To see some changes in the plots we could fix the spatial (x-)width of the signal and vary the parameter $w$ in order to vary the number of channels that can collect the signal.**
+
+
+```{r, fig.width=5}
+# plot two posteriors as an example of invariance w.r.t. w parameter
+grid.arrange(
+  ggplot() + geom_contour_filled(data=compute_posterior_SB(w=0.1), mapping = aes(x=A, y=B, z=Posterior), show.legend=FALSE) +
+             labs(title=paste("Posterior with A/B=2 and w=0.1")) +
+             theme_bw() +
+             theme(plot.title=element_text(hjust=0.5)),
+  ggplot() + geom_contour_filled(data=compute_posterior_SB(w=3), mapping = aes(x=A, y=B, z=Posterior), show.legend=FALSE) +
+             labs(title=paste("Posterior with A/B=2 and w=3")) +
+             theme_bw() +
+             theme(plot.title=element_text(hjust=0.5)),
+  nrow=1)
+```
+
+
+
+### Exercise 3b
+Change the ratio A/B used to simulate the data (keeping both positive in accordance with the prior). Check the effect on the results.
+
+We investigate the ratios $A/B = \{ 0.25, 0.5, 1, 2, 4\}$ by fixing $B=1$ and choosing $A= \{ 0.25, 0.5, 1, 2, 4\}$.
+
+```{r, fig.height=5, fig.width=6}
+# plot real signals vs measured signal as a function of A/B
+grid.arrange(
+plot_signal(w=1, A_true=0.25, B_true=1),
+plot_signal(w=1, A_true=0.5, B_true=1),
+plot_signal(w=1, A_true=1, B_true=1),
+plot_signal(w=1, A_true=2, B_true=1),
+plot_signal(w=1, A_true=4, B_true=1),
+nrow=3)
+```
+
+
+
+```{r, fig.height=5, fig.width=6}
+# plot A posterior
+grid.arrange(
+  ggplot() + geom_line(data=compute_posterior_SB(A_true=0.25, B_true=1, marginalize = "A"),
+                       aes(x=A, y=Posterior)) +
+             geom_vline(mapping=aes(xintercept = 0.25), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Marginalized posterior with A/B=0.25 and w=1") +
+             scale_y_continuous(name="P( A | D,M )") +
+             theme_bw() +
+             theme(plot.title=element_text(hjust=0.5)),
+  ggplot() + geom_line(data=compute_posterior_SB(A_true=0.5, B_true=1, marginalize = "A"),
+                       aes(x=A, y=Posterior)) +
+             geom_vline(mapping=aes(xintercept = 0.5), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Marginalized posterior with A/B=0.5 and w=1") +
+             scale_y_continuous(name="P( A | D,M )") +
+             theme_bw() +
+             theme(plot.title=element_text(hjust=0.5)),
+  ggplot() + geom_line(data=compute_posterior_SB(A_true=1, B_true=1, marginalize = "A"),
+                       aes(x=A, y=Posterior)) +
+             geom_vline(mapping=aes(xintercept = 1), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Marginalized posterior with A/B=1 and w=1") +
+             scale_y_continuous(name="P( A | D,M )") +
+             theme_bw() +
+             theme(plot.title=element_text(hjust=0.5)),
+  ggplot() + geom_line(data=compute_posterior_SB(A_true=2, B_true=1, marginalize = "A"),
+                       aes(x=A, y=Posterior)) +
+             geom_vline(mapping=aes(xintercept = 2), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Marginalized posterior with A/B=2 and w=1") +
+             scale_y_continuous(name="P( A | D,M )") +
+             theme_bw() +
+             theme(plot.title=element_text(hjust=0.5)),
+  ggplot() + geom_line(data=compute_posterior_SB(A_true=4, B_true=1, marginalize = "A"),
+                       aes(x=A, y=Posterior)) +
+             geom_vline(mapping=aes(xintercept = 4), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Marginalized posterior with A/B=4 and w=1") +
+             scale_y_continuous(name="P( A | D,M )") +
+             theme_bw() +
+             theme(plot.title=element_text(hjust=0.5)),
+  nrow=3)
+```
+
+
+
+```{r, fig.height=5, fig.width=6}
+# plot B posterior
+grid.arrange(
+  ggplot() + geom_line(data=compute_posterior_SB(A_true=0.25, B_true=1, marginalize = "B"),
+                       aes(x=B, y=Posterior)) +
+             geom_vline(mapping=aes(xintercept = 1), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Marginalized posterior with A/B=0.25 and w=1") +
+             scale_y_continuous(name="P( B | D,M )") +
+             theme_bw() +
+             theme(plot.title=element_text(hjust=0.5)),
+  ggplot() + geom_line(data=compute_posterior_SB(A_true=0.5, B_true=1, marginalize = "B"),
+                       aes(x=B, y=Posterior)) +
+             geom_vline(mapping=aes(xintercept = 1), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Marginalized posterior with A/B=0.5 and w=1") +
+             scale_y_continuous(name="P( B | D,M )") +
+             theme_bw() +
+             theme(plot.title=element_text(hjust=0.5)),
+  ggplot() + geom_line(data=compute_posterior_SB(A_true=1, B_true=1, marginalize = "B"),
+                       aes(x=B, y=Posterior)) +
+             geom_vline(mapping=aes(xintercept = 1), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Marginalized posterior with A/B=1 and w=1") +
+             scale_y_continuous(name="P( B | D,M )") +
+             theme_bw() +
+             theme(plot.title=element_text(hjust=0.5)),
+  ggplot() + geom_line(data=compute_posterior_SB(A_true=2, B_true=1, marginalize = "B"),
+                       aes(x=B, y=Posterior)) +
+             geom_vline(mapping=aes(xintercept = 1), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Marginalized posterior with A/B=2 and w=1") +
+             scale_y_continuous(name="P( B | D,M )") +
+             theme_bw() +
+             theme(plot.title=element_text(hjust=0.5)),
+  ggplot() + geom_line(data=compute_posterior_SB(A_true=4, B_true=1, marginalize = "B"),
+                       aes(x=B, y=Posterior)) +
+             geom_vline(mapping=aes(xintercept = 1), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Marginalized posterior with A/B=4 and w=1") +
+             scale_y_continuous(name="P( B | D,M )") +
+             theme_bw() +
+             theme(plot.title=element_text(hjust=0.5)),
+  nrow=3)
+```
+
+
+```{r, fig.height=7, fig.width=5}
+plt_base <- ggplot() +
+            theme_bw() +
+            theme(plot.title=element_text(hjust=0.5))
+
+grid.arrange(
+  plt_base + geom_contour_filled(data=compute_posterior_SB(A_true=0.25, B_true=1),
+                                 mapping = aes(x=A, y=B, z=Posterior), show.legend=FALSE) +
+             geom_vline(mapping=aes(xintercept = 0.25), colour="firebrick", linetype="dashed", size=1) +
+             geom_hline(mapping=aes(yintercept = 1), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Posterior with A/B=0.25 and w=1"),
+  plt_base + geom_contour_filled(data=compute_posterior_SB(A_true=0.5, B_true=1),
+                                 mapping = aes(x=A, y=B, z=Posterior), show.legend=FALSE) +
+             geom_vline(mapping=aes(xintercept = 0.5), colour="firebrick", linetype="dashed", size=1) +
+             geom_hline(mapping=aes(yintercept = 1), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Posterior with A/B=0.5 and w=1"),
+  plt_base + geom_contour_filled(data=compute_posterior_SB(A_true=1, B_true=1),
+                                 mapping = aes(x=A, y=B, z=Posterior), show.legend=FALSE) +
+             geom_vline(mapping=aes(xintercept = 1), colour="firebrick", linetype="dashed", size=1) +
+             geom_hline(mapping=aes(yintercept = 1), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Posterior with A/B=1 and w=1"),
+  plt_base + geom_contour_filled(data=compute_posterior_SB(A_true=2, B_true=1),
+                                 mapping = aes(x=A, y=B, z=Posterior), show.legend=FALSE) +
+             geom_vline(mapping=aes(xintercept = 2), colour="firebrick", linetype="dashed", size=1) +
+             geom_hline(mapping=aes(yintercept = 1), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Posterior with A/B=2 and w=1"),
+  plt_base + geom_contour_filled(data=compute_posterior_SB(A_true=4, B_true=1),
+                                 mapping = aes(x=A, y=B, z=Posterior), show.legend=FALSE) +
+             geom_vline(mapping=aes(xintercept = 4), colour="firebrick", linetype="dashed", size=1) +
+             geom_hline(mapping=aes(yintercept = 1), colour="firebrick", linetype="dashed", size=1) +
+             labs(title="Posterior with A/B=4 and w=1"),
+  nrow=3)
+```
+
+
+
