@@ -1,0 +1,795 @@
+---
+title: "Laboratory Session - May 19, 2022"
+output: html_notebook
+editor_options:
+  chunk_output_type: inline
+---
+
+# Paolo Zinesi 2053062
+
+```{r}
+set.seed(12345)
+
+library(tidyverse)
+library(gridExtra)
+library(rstan)
+library(rjags)
+library(brms)
+
+cbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+
+## Exercise 1
+A well established and diffused method for detecting a disease in blood fails to detect the presence of disease in 15% of the patients that actually have the disease.
+A young UniPD startUp has developed an innovative method of screening. During the qualification phase, a random sample of $n = 75$ patients known to have the disease is screened using the new method.
+
+
+### Exercise 1a
+**What is the probability distribution of y, the number of times the new method fails to detect the disease?**
+
+The variable $y$ follows a Binomial distribution on the parameter $p$, which quantify the probability of failing to detect the disease if a patient has the disease, and on the total number of measurements $n$. The likelihood associated to $y$ given $p$ and $n$ is
+
+$$\mathcal{L}(y\,|\,p,n) = {n \choose y}\, p^y\,(1-p)^{n-y}$$
+
+
+### Exercise 1b
+On the $n = 75$ patients sample, the new method fails to detect the disease in $y = 6$ cases. What is the frequentist estimator of the failure probability of the new method?
+
+```{r}
+y1 <- 6
+n1 <- 75
+p_1_F <- y1/n1
+cat("Frequentist estimator of the failure probability for y=", y1, " and n=", n1, " is p = ", signif(p_1_F, digits=3), sep="")
+```
+
+
+
+### Exercise 1c
+Setup a Bayesian computation of the posterior probability, assuming a beta distribution with mean value 0.15 and standard deviation 0.14. Plot the posterior distribution of the probability of y, and mark on the plot the mean value and variance.
+
+```{r}
+# estimate parameters for beta prior
+p <- seq(0, 0.6, length.out=1001)
+mean_beta1 <- 0.15
+var_beta1 <- (0.14)**2
+a1_prior <- ((1 - mean_beta1)/var_beta1 - 1/mean_beta1) * (mean_beta1**2)
+b1_prior <- a1_prior * (1/mean_beta1 - 1)
+beta_prior1_df <- tibble(p=p, y=dbeta(p, a1_prior, b1_prior))
+
+# likelihood(y/p,n) = Binom(y|p,n)
+
+# estimate parameters for beta posterior
+a1_post <- a1_prior + y1
+b1_post <- b1_prior + n1 - y1
+beta_post1_df <- tibble(p=p, y=dbeta(p, a1_post, b1_post))
+mean_beta1_post <- a1_post/(a1_post+b1_post)
+var_beta1_post <- (a1_post*b1_post)/(((a1_post+b1_post)**2)*(a1_post+b1_post+1))
+
+# plot
+plt1_prior_post <-  ggplot() +
+                    labs(title="Prior and Posterior for the parameter p", colour="Functions") +
+                    geom_line(data=beta_prior1_df, aes(x = p, y = y,colour=paste0("Prior = Beta (",round(a1_prior,2),",",round(b1_prior,2),")")), size=1) +
+                    geom_line(data=beta_post1_df, aes(x = p, y = y, colour=paste0("Posterior = Beta (",round(a1_post,2),",",round(b1_post,2),")")), size=1) +
+                    geom_vline(xintercept = mean_beta1_post, colour="grey40", linetype="solid", size=0.8) +
+                    geom_vline(xintercept = c(mean_beta1_post+sqrt(var_beta1_post), mean_beta1_post-sqrt(var_beta1_post)),
+                               colour="grey40", linetype="dashed") +
+                    scale_y_continuous(name = "Probability density") +
+                    scale_colour_manual(values = cbPalette) +
+                    theme_bw() +
+                    theme(plot.title=element_text(hjust=0.5), legend.box.background = element_rect(size=0.4))
+
+plt1_prior_post
+```
+
+
+
+### Exercise 1d
+Perform a test of hypothesis assuming that if the probability of failing to detect the disease in ill patients is greater or equal than 15%, the new test is no better that the traditional method. Test the sample at a 5% level of significance in the Bayesian way.
+
+The two hypothesis are
+$$H_0 : p \geq 0.15 \text{ versus } H_1 : p < 0.15$$
+
+```{r, warning=FALSE}
+# compute p-value
+Pval1_B <- 1 - pbeta(0.15, a1_post, b1_post)
+
+# plot
+plt1_pval_B <-  plt1_prior_post +
+                labs(fill="P-value") +
+                geom_area(data=beta_post1_df, aes(x=ifelse(p>=0.15, p, NA), fill = paste0("P(p ≥ 0.15) = ", round(Pval1_B,3)), y=y), alpha = 0.5) +
+                geom_vline(xintercept = 0.15, colour=cbPalette[3]) +
+                scale_fill_manual(values=cbPalette[3])
+plt1_pval_B
+```
+
+**Since the P-value is smaller than the significance level $\alpha=0.05$, we reject the null hypothesis. The new test is, thus, more effective in detecting the disease with the Bayesian hypothesis testing.**
+
+
+### Exercise 1e
+Perform the same hypothesis test in the classical frequentist way.
+
+The null distribution is the binomial with $n=75$ and $p=0.15$.
+
+```{r}
+# compute p-value
+Pval1_F <- pbinom(y1, n1, 0.15)
+
+# plot
+null_distr1 <- tibble(x=seq(from=0, to=n1/2), y=dbinom(x=seq(from=0, to=n1/2), size=n1, prob=0.15))
+plt1_pval_F <-  ggplot(null_distr1, aes(x=x, y=y)) +
+                labs(title=paste0("PDF of null distribution (p=0.15, n=", n1, ")"), fill="P-value") +
+                geom_segment(aes(x=x, xend=x, y=0, yend=y)) +
+                geom_point(size=3, color='orange') + 
+                geom_col(data=null_distr1,
+                         aes(x=ifelse(x<=y1, x, 0), y=ifelse(x<=y1, y, 0), fill=paste0("P(y ≤ ", y1, ") =", round(Pval1_F,3))),
+                         alpha=1, size=0.5, width = 0.8) +
+                scale_x_continuous(name ="Failures in detecting the disease") +
+                scale_y_continuous(name ="Probability") +
+                scale_fill_manual(values="steelblue") +
+                theme_bw() +
+                theme(plot.title=element_text(hjust=0.5), legend.box.background = element_rect(size=0.4))
+plt1_pval_F
+```
+
+**Since the P-value is larger than the significance level $\alpha=0.05$, we cannot reject the null hypothesis. In principle, according to frequentist hypothesis testing, the observed value of $y$ could be a random fluctuation at the significance level $\alpha=0.05$**.
+
+
+
+## Exercise 2
+Ladislaus Josephovich Bortkiewicz was a Russian economist and statistician. He noticed that the Poisson distribution can be very useful in applied statistics when describing low-frequency events in a large population. In a famous example he showed that the number of deaths by horse kick among the Prussian army follows the Poisson distribution.
+Considering the following two sets of observations taken over a fixed large time interval in two different corps:
+
+```{r}
+data2_display <- tibble("y death soldiers"=c("0","1","2","3","4","≥5"),
+                "n1 observations"=c(109,65,22,3,1,0),
+                "n2 observations"=c(144,91,32,11,2,0))
+data2 <- tibble("y"=seq(0,4),
+                "n1 observations"=c(109,65,22,3,1),
+                "n2 observations"=c(144,91,32,11,2))
+# extended data
+data2_corp1 <- rep(x=data2[["y"]], times=data2[["n1 observations"]])
+data2_corp2 <- rep(x=data2[["y"]], times=data2[["n2 observations"]])
+
+data2_display
+```
+
+The prior is denoted as $P \left( \lambda\, |\, n,M \right)$, the likelihood is denoted as $\mathcal{L} \left( y\, |\, \lambda,n,M \right)$ and the posterior is denoted as $\mathcal{P} \left( \lambda\, |\, y,n,M \right)$. Bayes' theorem states that $$\mathcal{P} \left( \lambda\, |\, y,n,M \right) = \dfrac{1}{Z}\, \mathcal{L} \left( y\, |\, \lambda,n,M \right)\, P \left( \lambda\, |\, n,M \right),$$ where $Z$ is a normalization constant.
+
+### Exercise 2a
+Assuming a uniform prior, compute and plot the posterior distribution for $\lambda$, the death rate over the measurement time. Determine the posterior mean, median and variance, and compute the 95% credibility interval.
+
+A uniform prior is a $\text{Gamma}(1,0)$, the likelihood is $\mathcal{L} \left( y\, |\, \lambda,n,M \right) = \prod_i \dfrac{\lambda^{y_i}\,e^{-\lambda}}{y_i!}$ and the posterior is a $\text{Gamma}(1+\sum_i y_i,n)$.
+
+
+```{r}
+# grid of lambdas
+lambda <- seq(0, 1, length.out=1001)
+
+# summaries of data
+n_corp1 <- sum(data2["n1 observations"])
+n_corp2 <- sum(data2["n2 observations"])
+y_corp1 <- sum(data2["y"]*data2["n1 observations"])
+y_corp2 <- sum(data2["y"]*data2["n2 observations"])
+
+# uniform prior parameters
+a_u_prior <- 1
+r_u_prior <- 0
+
+# posteriors parameters
+a_corp1_u_post <- a_u_prior + y_corp1
+r_corp1_u_post <- r_u_prior + n_corp1
+a_corp2_u_post <- a_u_prior + y_corp2
+r_corp2_u_post <- r_u_prior + n_corp2
+mean_corp1_u <- a_corp1_u_post / r_corp1_u_post
+mean_corp2_u <- a_corp2_u_post / r_corp2_u_post
+median_corp1_u <- qgamma(0.5, shape=a_corp1_u_post, rate=r_corp1_u_post)
+median_corp2_u <- qgamma(0.5, shape=a_corp2_u_post, rate=r_corp2_u_post)
+var_corp1_u <- a_corp1_u_post / (r_corp1_u_post**2)
+var_corp2_u <- a_corp2_u_post / (r_corp2_u_post**2)
+CI_corp1_u <- c(qgamma(0.025, shape=a_corp1_u_post, rate=r_corp1_u_post),
+                qgamma(0.975, shape=a_corp1_u_post, rate=r_corp1_u_post))
+CI_corp2_u <- c(qgamma(0.025, shape=a_corp2_u_post, rate=r_corp2_u_post),
+                qgamma(0.975, shape=a_corp2_u_post, rate=r_corp2_u_post))
+
+# posterior dfs (with analytical update rules)
+corp1_u_post_df <- tibble(lambda=lambda, y=dgamma(lambda, shape=a_corp1_u_post, rate=r_corp1_u_post))
+corp2_u_post_df <- tibble(lambda=lambda, y=dgamma(lambda, shape=a_corp2_u_post, rate=r_corp2_u_post))
+
+```
+
+
+```{r}
+# posteriors plot
+plt2_u_post <-  ggplot(mapping = aes(y=y)) +
+                labs(title="Posteriors for the two corps (uniform prior)", colour="Corp") +
+                geom_line(data=corp1_u_post_df, aes(x=lambda, colour="1"), size=1) +
+                geom_line(data=corp2_u_post_df, aes(x=lambda, colour="2"), size=1) +
+                scale_y_continuous(name = "P ( lambda | y,n,M )") +
+                scale_colour_manual(values = cbPalette) +
+                theme_bw() +
+                theme(plot.title=element_text(hjust=0.5), legend.box.background = element_rect(size=0.4))
+
+plt2_u_post
+```
+
+```{r}
+cat("Corp 1: mean=", signif(mean_corp1_u, 3), ", median=", signif(median_corp1_u, 3), ", variance=", signif(var_corp1_u, 3), "\n",
+    "\t95% credibility interval=[", signif(CI_corp1_u[1],3), ",", signif(CI_corp1_u[2],3), "]\n", sep="")
+cat("Corp 2: mean=", signif(mean_corp2_u, 3), ", median=", signif(median_corp2_u, 3), ", variance=", signif(var_corp2_u, 3), "\n",
+    "\t95% credibility interval=[", signif(CI_corp2_u[1],3), ",", signif(CI_corp2_u[2],3), "]\n", sep="")
+```
+
+```{r, warning=FALSE}
+plt2_u_CI <-  plt2_u_post +
+              geom_vline(xintercept = CI_corp1_u, colour=cbPalette[1], linetype="dashed") +
+              geom_area(data=corp1_u_post_df, aes(x=ifelse(lambda>=CI_corp1_u[1] & lambda<=CI_corp1_u[2], lambda, NA), fill = "1"), alpha = 0.3) +
+              geom_vline(xintercept = CI_corp2_u, colour=cbPalette[2], linetype="dashed") +
+              geom_area(data=corp2_u_post_df, aes(x=ifelse(lambda>=CI_corp2_u[1] & lambda<=CI_corp2_u[2], lambda, NA), fill = "2"), alpha = 0.3) +
+              labs(fill="95% CI") +
+              scale_fill_manual(values=cbPalette)
+          
+plt2_u_CI
+```
+
+
+### Exercise 2b
+Assuming now a Jeffrey’s prior,
+
+$$g\,(\lambda) \propto \dfrac{1}{\sqrt{\lambda}}, \text{ with } \lambda>0$$
+
+Compute and plot the posterior distribution for $\lambda$, the death rate over the measurement time. Determine the posterior mean, median and variance, and compute the 95% credibility interval.
+
+A Jeffrey's prior is a $\text{Gamma}\left(\dfrac{1}{2},0\right)$, the likelihood is $\mathcal{L} \left( y\, |\, \lambda,n,M \right) = \prod_i \dfrac{\lambda^{y_i}\,e^{-\lambda}}{y_i!}$ and the posterior is a $\text{Gamma}\left(\dfrac{1}{2}+\sum_i y_i,n\right)$.
+
+
+```{r}
+# uniform prior parameters
+a_J_prior <- 0.5
+r_J_prior <- 0
+
+# posteriors parameters
+a_corp1_J_post <- a_J_prior + y_corp1
+r_corp1_J_post <- r_J_prior + n_corp1
+a_corp2_J_post <- a_J_prior + y_corp2
+r_corp2_J_post <- r_J_prior + n_corp2
+mean_corp1_J <- a_corp1_J_post / r_corp1_J_post
+mean_corp2_J <- a_corp2_J_post / r_corp2_J_post
+median_corp1_J <- qgamma(0.5, shape=a_corp1_J_post, rate=r_corp1_J_post)
+median_corp2_J <- qgamma(0.5, shape=a_corp2_J_post, rate=r_corp2_J_post)
+var_corp1_J <- a_corp1_J_post / (r_corp1_J_post**2)
+var_corp2_J <- a_corp2_J_post / (r_corp2_J_post**2)
+CI_corp1_J <- c(qgamma(0.025, shape=a_corp1_J_post, rate=r_corp1_J_post),
+                qgamma(0.975, shape=a_corp1_J_post, rate=r_corp1_J_post))
+CI_corp2_J <- c(qgamma(0.025, shape=a_corp2_J_post, rate=r_corp2_J_post),
+                qgamma(0.975, shape=a_corp2_J_post, rate=r_corp2_J_post))
+
+# posterior dfs (with analytical update rules)
+corp1_J_post_df <- tibble(lambda=lambda, y=dgamma(lambda, shape=a_corp1_J_post, rate=r_corp1_J_post))
+corp2_J_post_df <- tibble(lambda=lambda, y=dgamma(lambda, shape=a_corp2_J_post, rate=r_corp2_J_post))
+
+```
+
+
+```{r}
+# posteriors plot
+plt2_J_post <-  ggplot(mapping = aes(y=y)) +
+                labs(title="Posteriors for the two corps (Jeffrey's prior)", colour="Corp") +
+                geom_line(data=corp1_J_post_df, aes(x=lambda, colour="1"), size=1) +
+                geom_line(data=corp2_J_post_df, aes(x=lambda, colour="2"), size=1) +
+                scale_y_continuous(name = "P ( lambda | y,n,M )") +
+                scale_colour_manual(values = cbPalette) +
+                theme_bw() +
+                theme(plot.title=element_text(hjust=0.5), legend.box.background = element_rect(size=0.4))
+
+plt2_J_post
+```
+
+```{r}
+cat("Corp 1: mean=", signif(mean_corp1_J, 3), ", median=", signif(median_corp1_J, 3), ", variance=", signif(var_corp1_J, 3), "\n",
+    "\t95% credibility interval=[", signif(CI_corp1_J[1],3), ",", signif(CI_corp1_J[2],3), "]\n", sep="")
+cat("Corp 2: mean=", signif(mean_corp2_J, 3), ", median=", signif(median_corp2_J, 3), ", variance=", signif(var_corp2_J, 3), "\n",
+    "\t95% credibility interval=[", signif(CI_corp2_J[1],3), ",", signif(CI_corp2_J[2],3), "]\n", sep="")
+```
+
+```{r, warning=FALSE}
+plt2_J_CI <-  plt2_J_post +
+              geom_vline(xintercept = CI_corp1_J, colour=cbPalette[1], linetype="dashed") +
+              geom_area(data=corp1_J_post_df, aes(x=ifelse(lambda>=CI_corp1_J[1] & lambda<=CI_corp1_J[2], lambda, NA), fill = "1"), alpha = 0.3) +
+              geom_vline(xintercept = CI_corp2_J, colour=cbPalette[2], linetype="dashed") +
+              geom_area(data=corp2_J_post_df, aes(x=ifelse(lambda>=CI_corp2_J[1] & lambda<=CI_corp2_J[2], lambda, NA), fill = "2"), alpha = 0.3) +
+              labs(fill="95% CI") +
+              scale_fill_manual(values=cbPalette)
+          
+plt2_J_CI
+```
+
+
+
+## Exercise 3
+In a study on water quality of streams, a high level of bacteria X was defined as a level greater than 100 per 100 ml of stream water. $n = 116$ samples were taken from streams having a high environmental impact on pandas. Out of these, $y = 11$ had a high bacteria X level.
+Indicate with $p$ the probability that a sample of water taken from the stream has a high bacteria X level.
+
+
+### Exercise 3a
+Find the frequentist estimator for $p$.
+
+```{r}
+y3a <- 11
+n3a <- 116
+p_3a_F <- y3a/n3a
+cat("Frequentist estimator of the failure probability for y=", y3a, " and n=", n3a, " is p = ", signif(p_3a_F, digits=3), sep="")
+```
+
+
+
+### Exercise 3b
+Using a Beta(1, 10) prior for $p$, calculate the posterior distribution $P(p \,|\, y,n,M)$.
+
+```{r}
+# Beta(1,10) prior parameters
+p <- seq(0, 0.3, length.out=1001)
+a3_prior <- 1
+b3_prior <- 10
+beta_prior3a_df <- tibble(p=p, y=dbeta(p, a3_prior, b3_prior))
+
+# posteriors parameters
+a3a_post <- a3_prior + y3a
+b3a_post <- b3_prior + n3a - y3a
+beta_post3a_df <- tibble(p=p, y=dbeta(p, a3a_post, b3a_post))
+
+# plot
+plt3_post <-  ggplot(mapping=aes(y=y)) +
+              labs(title="Posterior for the parameter p (old measurement)", colour="Function") +
+              geom_line(data=beta_post3a_df, aes(x=p, colour=paste0("Posterior = Beta (",round(a3a_post,2),",",round(b3a_post,2),")")), size=1) +
+              scale_y_continuous(name = "Probability density") +
+              scale_colour_manual(values = cbPalette[1]) +
+              theme_bw() +
+              theme(plot.title=element_text(hjust=0.5), legend.box.background = element_rect(size=0.4))
+
+plt3_post
+```
+
+
+
+### Exercise 3c
+Find the Bayesian estimator for $p$, the posterior mean and variance, and a 95% credible interval.
+
+```{r}
+# find Bayesian estimator as the maximum of the posterior
+p_3a_B <- (a3a_post - 1)/(a3a_post + b3a_post - 2)
+mean_3a <- a3a_post / (a3a_post + b3a_post)
+var_3a <- (a3a_post*b3a_post)/(((a3a_post+b3a_post)**2)*(a3a_post+b3a_post+1))
+CI_3a_B <- c(qbeta(0.025, a3a_post, b3a_post),
+           qbeta(0.975, a3a_post, b3a_post))
+
+cat("Bayesian estimate for p = ", signif(p_3a_B,3), ", mean=", signif(mean_3a, 3), ", variance=", signif(var_3a, 3), "\n",
+    "\t95% credibility interval=[", signif(CI_3a_B[1],3), ",", signif(CI_3a_B[2],3), "]\n", sep="")
+```
+
+
+```{r, warning=FALSE}
+# plot
+plt3_CI <-  plt3_post +
+            geom_vline(xintercept = CI_3a_B, colour=cbPalette[1], linetype="dashed") +
+            geom_area(data=beta_post3a_df, alpha=0.3,
+                      aes(x=ifelse(p>=CI_3a_B[1] & p<=CI_3a_B[2], p, NA),
+                          fill=paste0("Posterior = Beta (",round(a3a_post,2),",",round(b3a_post,2),")"))) +
+            labs(fill="95% CI") +
+            scale_fill_manual(values=cbPalette)
+        
+plt3_CI
+```
+
+
+
+### Exercise 3d
+Test the hypothesis
+$$H_0 : p = 0.1 \text{ versus } H_1 : p \neq 0.1$$
+at 5% level of significance with both the frequentist and Bayesian approach.
+
+The null distribution used in the frequentist hypothesis testing is a binomial with $n=116$ and $p=0.1$.
+
+```{r}
+# frequentist hypothesis testing
+# these extreme values are the first ones belonging to the rejection region
+CI_3a_F <- c(qbinom(0.025, size=n3a, prob=0.1)-1, qbinom(0.975, size=n3a, prob=0.1)+1) 
+signif_3a_F <- pbinom(CI_3a_F[1], size=n3a, prob=0.1) + pbinom(CI_3a_F[2]-1, size=n3a, prob=0.1, lower.tail=FALSE)
+
+# plot
+null_distr3 <- tibble(x=seq(from=0, to=n3a/4), y=dbinom(x=seq(from=0, to=n3a/4), size=n3a, prob=0.1))
+plt3_pval_F <-  ggplot(data=null_distr3, mapping=aes(x=x, y=y)) +
+                labs(title=paste0("PDF of null distribution (p=0.1, n=", n3a, ") (old measurement)"), fill="fill") +
+                geom_segment(aes(x=x, xend=x, y=0, yend=y)) +
+                geom_point(size=3, color='orange') + 
+                geom_col(mapping=aes(x=ifelse((x<=CI_3a_F[1] | x>=CI_3a_F[2]), x, 0),
+                                     y=ifelse((x<=CI_3a_F[1] | x>=CI_3a_F[2]), y, 0),
+                                     fill=paste0("P(y ≤ ", CI_3a_F[1], ") + P(y ≥ ", CI_3a_F[2], ") = ", round(signif_3a_F,3))),
+                         alpha=1, size=0.5, width = 0.8) +
+                geom_col(data=tibble(x=y3a, y=dbinom(y3a, size=n3a, prob=0.1)), mapping=aes(fill=paste0("y = ", y3a)),
+                         alpha=1, size=0.5, width = 0.8) +
+                scale_x_continuous(name ="Samples with high bacteria X level", breaks=seq(0,30,5)) +
+                scale_y_continuous(name ="Probability") +
+                scale_fill_manual(values=c("steelblue", "firebrick")) +
+                theme_bw() +
+                theme(plot.title=element_text(hjust=0.5), legend.box.background = element_rect(size=0.4))
+plt3_pval_F
+```
+
+**Since the value of $y=11$ is inside the 95% frequentist confidence interval, we do not reject the null hypothesis at 5% level of significance in the frequentist approach. In the Bayesian hypothesis testing, instead, we employ the 95% credibility interval computed in the previous point (3c). The value of $p=0.1$ lies in the acceptance region, so we accept the null hypothesis (no significant change occurred in stream water). Both approaches lead to the same conclusions at 5% level of significance.**
+
+
+
+
+A new measurement, performed one month later on $n = 165$ water samples, gives $y = 9$ high bacteria X level.
+
+### Exercise 3e
+Find the frequentist estimator for $p$.
+
+```{r}
+y3e <- 9
+n3e <- 165
+p_3e_F <- y3e/n3e
+cat("Frequentist estimator of the failure probability for y=", y3e, " and n=", n3e, " is p = ", signif(p_3e_F, digits=3), sep="")
+```
+
+### Exercise 3f
+Find a Bayesian estimator for $p$, assuming both a Beta(1, 10) prior for $p$, and assuming the posterior probability of the older measurement as the prior for the new one.
+
+```{r}
+# Beta(1,10) prior parameters
+p <- seq(0, 0.2, length.out=1001)
+a3_beta_prior <- 1
+b3_beta_prior <- 10
+beta_prior3e_df <- tibble(p=p, y=dbeta(p, a3_beta_prior, b3_beta_prior))
+
+# posterior of point 3b as a new prior
+a3_new_prior <- a3a_post
+b3_new_prior <- b3a_post
+new_prior3e_df <- tibble(p=p, y=dbeta(p, a3_new_prior, b3_new_prior))
+
+# posteriors parameters
+a3e_beta_post <- a3_beta_prior + y3e
+b3e_beta_post <- b3_beta_prior + n3e - y3e
+a3e_new_post <- a3_new_prior + y3e
+b3e_new_post <- b3_new_prior + n3e - y3e
+beta_post3e_df <- tibble(p=p, y=dbeta(p, a3e_beta_post, b3e_beta_post))
+new_post3e_df <- tibble(p=p, y=dbeta(p, a3e_new_post, b3e_new_post))
+
+# plot
+plt3e_post <- ggplot(mapping=aes(y=y)) +
+              labs(title="Posteriors for the parameter p (new measurement)", colour="Function") +
+              geom_line(data=beta_post3e_df, aes(x=p,colour=paste0("Beta(", a3_beta_prior, ",", b3_beta_prior, ") prior\nPosterior = Beta (",round(a3e_beta_post,2),",",round(b3e_beta_post,2),")\n")), size=1) +
+              geom_line(data=new_post3e_df, aes(x=p, colour=paste0("Previous posterior as new prior\nPosterior = Beta (",round(a3e_new_post,2),",",round(b3e_new_post,2),")")), size=1) +
+              scale_y_continuous(name = "Probability density") +
+              scale_colour_manual(values = cbPalette) +
+              theme_bw() +
+              theme(plot.title=element_text(hjust=0.5), legend.box.background = element_rect(size=0.4))
+
+plt3e_post
+```
+
+
+### Exercise 3g
+Find the Bayesian estimator for $p$, the posterior mean and variance, and a 95% credible interval.
+
+```{r}
+# find Bayesian estimator as the maximum of the posterior
+p_3e_beta_B <- (a3e_beta_post - 1)/(a3e_beta_post + b3e_beta_post - 2)
+p_3e_new_B <- (a3e_new_post - 1)/(a3e_new_post + b3e_new_post - 2)
+mean_3e_beta <- a3e_beta_post / (a3e_beta_post + b3e_beta_post)
+mean_3e_new <- a3e_new_post / (a3e_new_post + b3e_new_post)
+var_3e_beta <- (a3e_beta_post*b3e_beta_post)/(((a3e_beta_post+b3e_beta_post)**2)*(a3e_beta_post+b3e_beta_post+1))
+var_3e_new <- (a3e_new_post*b3e_new_post)/(((a3e_new_post+b3e_new_post)**2)*(a3e_new_post+b3e_new_post+1))
+CI_3e_beta_B <- c(qbeta(0.025, a3e_beta_post, b3e_beta_post),
+           qbeta(0.975, a3e_beta_post, b3e_beta_post))
+CI_3e_new_B <- c(qbeta(0.025, a3e_new_post, b3e_new_post),
+           qbeta(0.975, a3e_new_post, b3e_new_post))
+
+cat("With Beta(1,10) prior:\n\tBayesian estimate for p = ", signif(p_3e_beta_B,3), ", mean=", signif(mean_3e_beta, 3), ", variance=", signif(var_3e_beta, 3), "\n",
+    "\t95% credibility interval=[", signif(CI_3e_beta_B[1],3), ",", signif(CI_3e_beta_B[2],3), "]\n", sep="")
+cat("With previous posterior as a new prior:\n\tBayesian estimate for p = ", signif(p_3e_new_B,3), ", mean=", signif(mean_3e_new, 3), ", variance=", signif(var_3e_new, 3), "\n",
+    "\t95% credibility interval=[", signif(CI_3e_new_B[1],3), ",", signif(CI_3e_new_B[2],3), "]\n", sep="")
+```
+
+
+```{r, warning=FALSE}
+# plot
+plt3e_CI <- plt3e_post +
+            geom_vline(xintercept = CI_3e_beta_B, colour=cbPalette[1], linetype="dashed") +
+            geom_area(data=beta_post3e_df, alpha=0.3,
+                      aes(x=ifelse(p>=CI_3e_beta_B[1] & p<=CI_3e_beta_B[2], p, NA),
+                          fill=paste0("Beta(", a3_beta_prior, ",", b3_beta_prior, ") prior"))) +
+            geom_vline(xintercept = CI_3e_new_B, colour=cbPalette[2], linetype="dashed") +
+            geom_area(data=new_post3e_df, alpha=0.3,
+                      aes(x=ifelse(p>=CI_3e_new_B[1] & p<=CI_3e_new_B[2], p, NA),
+                          fill="Previous posterior as new prior")) +
+            labs(fill="95% CI") +
+            scale_fill_manual(values=cbPalette)
+        
+plt3e_CI
+```
+
+
+
+### Exercise 3h
+Test the hypotesis
+$$H_0 : p = 0.1 \text{ versus } H_1 : p \neq 0.1$$
+at 5% level of significance with both the frequentist and Bayesian approach.
+
+
+```{r}
+# frequentist hypothesis testing
+# these extreme values are the first ones belonging to the rejection region
+CI_3e_F <- c(qbinom(0.025, size=n3e, prob=0.1), qbinom(0.975, size=n3e, prob=0.1)+1) 
+signif_3e_F <- pbinom(CI_3e_F[1], size=n3e, prob=0.1) + pbinom(CI_3e_F[2]-1, size=n3e, prob=0.1, lower.tail=FALSE)
+
+# plot
+null_distr3e <- tibble(x=seq(from=0, to=n3e/4), y=dbinom(x=seq(from=0, to=n3e/4), size=n3e, prob=0.1))
+plt3e_pval_F <- ggplot(data=null_distr3e, mapping=aes(x=x, y=y)) +
+                labs(title=paste0("PDF of null distribution (p=0.1, n=", n3e, ") (new measurement)"), fill="fill") +
+                geom_segment(aes(x=x, xend=x, y=0, yend=y)) +
+                geom_point(size=3, color='orange') + 
+                geom_col(mapping=aes(x=ifelse((x<=CI_3e_F[1] | x>=CI_3e_F[2]), x, 0),
+                                     y=ifelse((x<=CI_3e_F[1] | x>=CI_3e_F[2]), y, 0),
+                                     fill=paste0("P(y ≤ ", CI_3e_F[1], ") + P(y ≥ ", CI_3e_F[2], ") = ", round(signif_3e_F,3))),
+                         alpha=1, size=0.5, width = 0.8) +
+                geom_col(data=tibble(x=y3e, y=dbinom(y3e, size=n3e, prob=0.1)), mapping=aes(fill=paste0("y = ", y3e)),
+                         alpha=0.5, size=0.5, width = 0.8) +
+                scale_x_continuous(name ="Samples with high bacteria X level", breaks=seq(0,30,5)) +
+                scale_y_continuous(name ="Probability") +
+                scale_fill_manual(values=c("steelblue", "firebrick")) +
+                theme_bw() +
+                theme(plot.title=element_text(hjust=0.5), legend.box.background = element_rect(size=0.4))
+plt3e_pval_F
+```
+
+**Since the value of $y=9$ is outside the 95% frequentist confidence interval, we reject the null hypothesis at 5% level of significance in the frequentist approach. In the Bayesian hypothesis testing, instead, we employ the 95% credibility interval computed in the previous point (3c) considering both the case with a Beta(1,10) prior and the prior obtained from the previous posterior. The value of $p=0.1$ lies outside the acceptance region with a Beta(1,10) prior, while it lies inside the acceptance region with the prior obtained from the previous posterior. In this case the acceptance or rejection of the null hypothesis depends on the prior that is chosen. By not considering the previous data (i.e., using a Beta(1,10) prior) we conclude that the parameter $p=0.1$ is not in the posterior's 95% credibility interval, while using both the actual data and the previous data($y/n=9/165$ and $y/n=11/116$, respectively) we conclude that the parameter $p=0.1$ is actually in the posterior's 95% credibility interval.**
+
+
+## Exercise 4
+Analyze the data of Exercise 1 using a MCMC with JAGS.
+
+```{r}
+# model definition
+data4 <- NULL
+data4$a_prior <- a1_prior
+data4$b_prior <- b1_prior
+data4$X <- y1
+data4$n <- n1
+
+# model computations
+jm4 <- jags.model("model4.bug", data4, quiet=TRUE)
+chain4 <- coda.samples(jm4, c("p"), n.iter=10000, progress.bar="none")
+print(summary(chain4))
+```
+```{r}
+plot(chain4)
+```
+
+```{r}
+mean_4_post <- unname(summary(chain4)$statistics["Mean"])
+sd_4_post <- unname(summary(chain4)$statistics["SD"])
+CI_1_post <- c(qbeta(0.025, a1_post, b1_post), qbeta(0.975, a1_post, b1_post))
+CI_4_post <- unname(summary(chain4)$quantiles[c("2.5%","97.5%")])
+
+cat("Mean computed by JAGS = ", signif(mean_4_post,4), "\n", sep="")
+cat("Mean computed (analytically) in point 1 = ", signif(mean_beta1_post,4), "\n", sep="")
+cat("-----------\n")
+cat("Variance computed by JAGS = ", signif(sd_4_post**2,4), "\n", sep="")
+cat("Variance computed (analytically) in point 1 = ", signif(var_beta1_post,4), "\n", sep="")
+cat("-----------\n")
+cat("95% credibility interval computed by JAGS = [", signif(CI_1_post[1],3), ",", signif(CI_1_post[2],3), "]\n", sep="")
+cat("95% credibility interval computed in point 1 = [", signif(CI_4_post[1],3), ",", signif(CI_4_post[2],3), "]\n", sep="")
+```
+
+
+```{r, warning=FALSE}
+# retrieve data from density plot
+density4_df <- ggplot_build(ggplot() + geom_density(data=as_tibble(as.mcmc(chain4)), mapping=aes(x=p)))$data[[1]][c("x","y")]
+
+# plot
+plt4 <- ggplot() +
+        geom_line(mapping=aes(x=x, y=y), data=density4_df, size=1) +
+        geom_vline(mapping=aes(xintercept=mean_4_post, color=""), size=1) +
+        geom_vline(mapping=aes(xintercept=c(mean_4_post+sd_4_post,mean_4_post-sd_4_post), color=""), linetype="dashed", size=1) +
+        geom_area(data=density4_df,
+                  aes(x=ifelse(x>=CI_4_post[1] & x<=CI_4_post[2], x, NA), fill="", y=y),
+                  alpha=0.3) +
+        labs(title="Density of p") +
+        scale_y_continuous(name="Probability density") +
+        scale_fill_manual(values=cbPalette[1], name="95% CI") +
+        scale_colour_manual(values=rep(cbPalette,2), name="Mean ± Standard Deviation") +
+        theme_bw() +
+        theme(plot.title=element_text(hjust=0.5))
+
+plt4
+```
+
+
+## Exercise 5
+Analyze the data of Exercise 2 using a MCMC with JAGS.
+
+**Analysis with uniform prior**
+
+```{r}
+# model definition: corp1+corp2, uniform prior
+data5_corp1_u <- NULL
+data5_corp1_u$X <- data2_corp1
+data5_corp2_u <- NULL
+data5_corp2_u$X <- data2_corp2
+
+# model computations: corp1+corp2, uniform prior
+jm5_corp1_u <- jags.model("model5_u.bug", data5_corp1_u, quiet = TRUE)
+update(jm5_corp1_u, 1000, progress.bar="none")
+chain5_corp1_u <- coda.samples(jm5_corp1_u, c("lambda"), n.iter=10000, progress.bar="none")
+
+jm5_corp2_u <- jags.model("model5_u.bug", data5_corp2_u, quiet = TRUE)
+update(jm5_corp2_u, 1000, progress.bar="none")
+chain5_corp2_u <- coda.samples(jm5_corp2_u, c("lambda"), n.iter=10000, progress.bar="none")
+```
+
+```{r}
+cat("Statistics for corp 1:\n")
+print(summary(chain5_corp1_u)$statistics)
+cat("\nQuantiles for corp 1:\n")
+print(summary(chain5_corp1_u)$quantiles)
+cat("\n\n")
+cat("Statistics for corp 2:\n")
+print(summary(chain5_corp2_u)$statistics)
+cat("\nQuantiles for corp 2:\n")
+print(summary(chain5_corp2_u)$quantiles)
+```
+
+```{r, warning=FALSE}
+# mean and std dev
+mean_5_corp1_u_post <- unname(summary(chain5_corp1_u)$statistics["Mean"])
+sd_5_corp1_u_post <- unname(summary(chain5_corp1_u)$statistics["SD"])
+mean_5_corp2_u_post <- unname(summary(chain5_corp2_u)$statistics["Mean"])
+sd_5_corp2_u_post <- unname(summary(chain5_corp2_u)$statistics["SD"])
+CI_5_corp1_u_post <- unname(summary(chain5_corp1_u)$quantiles[c("2.5%","97.5%")])
+CI_5_corp2_u_post <- unname(summary(chain5_corp2_u)$quantiles[c("2.5%","97.5%")])
+
+# retrieve data from density plot
+density5_corp1_u_df <- ggplot_build(ggplot() + geom_density(data=as_tibble(as.mcmc(chain5_corp1_u)), mapping=aes(x=lambda)))$data[[1]][c("x","y")]
+density5_corp2_u_df <- ggplot_build(ggplot() + geom_density(data=as_tibble(as.mcmc(chain5_corp2_u)), mapping=aes(x=lambda)))$data[[1]][c("x","y")]
+
+# plot
+plt5_u <- ggplot() +
+          geom_line(mapping=aes(x=x, y=y), data=density5_corp1_u_df, size=1, color=cbPalette[1]) +
+          geom_vline(mapping=aes(xintercept=mean_5_corp1_u_post, color="Corp 1"), size=1) +
+          geom_vline(mapping=aes(xintercept=c(mean_5_corp1_u_post+sd_5_corp1_u_post,mean_5_corp1_u_post-sd_5_corp1_u_post),color="Corp 1"),
+                     linetype="dashed", size=1) +
+          geom_area(data=density5_corp1_u_df, alpha=0.3,
+                    aes(x=ifelse(x>=CI_5_corp1_u_post[1] & x<=CI_5_corp1_u_post[2], x, NA), fill="Corp 1", y=y)) +
+          geom_line(mapping=aes(x=x, y=y), data=density5_corp2_u_df, size=1, color=cbPalette[2]) +
+          geom_vline(mapping=aes(xintercept=mean_5_corp2_u_post, color="Corp 2"), size=1) +
+          geom_vline(mapping=aes(xintercept=c(mean_5_corp2_u_post+sd_5_corp2_u_post,mean_5_corp2_u_post-sd_5_corp2_u_post),color="Corp 2"),
+                     linetype="dashed", size=1) +
+          geom_area(data=density5_corp2_u_df, alpha=0.3,
+                    aes(x=ifelse(x>=CI_5_corp2_u_post[1] & x<=CI_5_corp2_u_post[2], x, NA), fill="Corp 2", y=y)) +
+          labs(title="Density of p (with uniform priors)") +
+          scale_y_continuous(name="Probability density") +
+          scale_fill_manual(values=cbPalette, name="95% CI") +
+          scale_colour_manual(values=rep(cbPalette,2), name="Mean ± Standard Deviation") +
+          theme_bw() +
+          theme(plot.title=element_text(hjust=0.5))
+
+plt5_u
+```
+
+
+
+**Analysis with Jeffrey's prior**
+
+```{r}
+# model definition: corp1+corp2, Jeffrey's prior
+data5_corp1_J <- NULL
+data5_corp1_J$X <- data2_corp1
+data5_corp2_J <- NULL
+data5_corp2_J$X <- data2_corp2
+
+# model computations: corp1+corp2, Jeffrey's prior
+jm5_corp1_J <- jags.model("model5_J.bug", data5_corp1_J, quiet = TRUE)
+update(jm5_corp1_J, 1000, progress.bar="none")
+chain5_corp1_J <- coda.samples(jm5_corp1_J, c("lambda"), n.iter=10000, progress.bar="none")
+
+jm5_corp2_J <- jags.model("model5_J.bug", data5_corp2_J, quiet = TRUE)
+update(jm5_corp2_J, 1000, progress.bar="none")
+chain5_corp2_J <- coda.samples(jm5_corp2_J, c("lambda"), n.iter=10000, progress.bar="none")
+```
+
+```{r}
+cat("Statistics for corp 1:\n")
+print(summary(chain5_corp1_J)$statistics)
+cat("\nQuantiles for corp 1:\n")
+print(summary(chain5_corp1_J)$quantiles)
+cat("\n\n")
+cat("Statistics for corp 2:\n")
+print(summary(chain5_corp2_J)$statistics)
+cat("\nQuantiles for corp 2:\n")
+print(summary(chain5_corp2_J)$quantiles)
+```
+
+```{r, warning=FALSE}
+# mean and std dev
+mean_5_corp1_J_post <- unname(summary(chain5_corp1_J)$statistics["Mean"])
+sd_5_corp1_J_post <- unname(summary(chain5_corp1_J)$statistics["SD"])
+mean_5_corp2_J_post <- unname(summary(chain5_corp2_J)$statistics["Mean"])
+sd_5_corp2_J_post <- unname(summary(chain5_corp2_J)$statistics["SD"])
+CI_5_corp1_J_post <- unname(summary(chain5_corp1_J)$quantiles[c("2.5%","97.5%")])
+CI_5_corp2_J_post <- unname(summary(chain5_corp2_J)$quantiles[c("2.5%","97.5%")])
+
+# retrieve data from density plot
+density5_corp1_J_df <- ggplot_build(ggplot() + geom_density(data=as_tibble(as.mcmc(chain5_corp1_J)), mapping=aes(x=lambda)))$data[[1]][c("x","y")]
+density5_corp2_J_df <- ggplot_build(ggplot() + geom_density(data=as_tibble(as.mcmc(chain5_corp2_J)), mapping=aes(x=lambda)))$data[[1]][c("x","y")]
+
+# plot
+plt5_J <- ggplot() +
+          geom_line(mapping=aes(x=x, y=y), data=density5_corp1_J_df, size=1, color=cbPalette[1]) +
+          geom_vline(mapping=aes(xintercept=mean_5_corp1_J_post, color="Corp 1"), size=1) +
+          geom_vline(mapping=aes(xintercept=c(mean_5_corp1_J_post+sd_5_corp1_J_post,mean_5_corp1_J_post-sd_5_corp1_J_post),color="Corp 1"),
+                     linetype="dashed", size=1) +
+          geom_area(data=density5_corp1_J_df, alpha=0.3,
+                    aes(x=ifelse(x>=CI_5_corp1_J_post[1] & x<=CI_5_corp1_J_post[2], x, NA), fill="Corp 1", y=y)) +
+          geom_line(mapping=aes(x=x, y=y), data=density5_corp2_J_df, size=1, color=cbPalette[2]) +
+          geom_vline(mapping=aes(xintercept=mean_5_corp2_J_post, color="Corp 2"), size=1) +
+          geom_vline(mapping=aes(xintercept=c(mean_5_corp2_J_post+sd_5_corp2_J_post,mean_5_corp2_J_post-sd_5_corp2_J_post),color="Corp 2"),
+                     linetype="dashed", size=1) +
+          geom_area(data=density5_corp2_J_df, alpha=0.3,
+                    aes(x=ifelse(x>=CI_5_corp2_J_post[1] & x<=CI_5_corp2_J_post[2], x, NA), fill="Corp 2", y=y)) +
+          labs(title="Density of p (with Jeffrey's priors)") +
+          scale_y_continuous(name="Probability density") +
+          scale_fill_manual(values=cbPalette, name="95% CI") +
+          scale_colour_manual(values=rep(cbPalette,2), name="Mean ± Standard Deviation") +
+          theme_bw() +
+          theme(plot.title=element_text(hjust=0.5))
+
+plt5_J
+```
+
+
+## Exercise 6
+Analyze the data of Exercise 3 using a MCMC with JAGS.
+
+```{r}
+# model definition
+data6 <- NULL
+data6$a_prior <- a3_beta_prior
+data6$b_prior <- b3_beta_prior
+data6$X <- y3a
+data6$n <- n3a
+
+# model computations
+jm6 <- jags.model("model6.bug", data6, quiet=TRUE)
+update(jm6, 1000, progress.bar="none")
+chain6 <- coda.samples(jm6, c("p"), n.iter=10000, progress.bar="none")
+print(summary(chain6))
+```
+
+```{r, warning=FALSE}
+# mean and std dev
+mean_6_post <- unname(summary(chain6)$statistics["Mean"])
+sd_6_post <- unname(summary(chain6)$statistics["SD"])
+CI_6_post <- unname(summary(chain6)$quantiles[c("2.5%","97.5%")])
+
+# retrieve data from density plot
+density6_df <- ggplot_build(ggplot() + geom_density(data=as_tibble(as.mcmc(chain6)), mapping=aes(x=p)))$data[[1]][c("x","y")]
+
+# plot
+plt6 <- ggplot() +
+        geom_line(mapping=aes(x=x, y=y), data=density6_df, size=1, color=cbPalette[1]) +
+        geom_vline(mapping=aes(xintercept=mean_6_post, color=""), size=1) +
+        geom_vline(mapping=aes(xintercept=c(mean_6_post+sd_6_post,mean_6_post-sd_6_post),color=""),
+                   linetype="dashed", size=1) +
+        geom_area(data=density6_df, alpha=0.3,
+                  aes(x=ifelse(x>=CI_6_post[1] & x<=CI_6_post[2], x, NA), fill="", y=y)) +
+        labs(title="Density of p") +
+        scale_y_continuous(name="Probability density") +
+        scale_fill_manual(values=cbPalette, name="95% CI") +
+        scale_colour_manual(values=rep(cbPalette,2), name="Mean ± Standard Deviation") +
+        theme_bw() +
+        theme(plot.title=element_text(hjust=0.5))
+
+plt6
+```

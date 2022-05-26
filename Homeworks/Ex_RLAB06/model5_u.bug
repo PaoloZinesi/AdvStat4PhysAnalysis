@@ -1,0 +1,12 @@
+model {
+	# uniform prior
+	lambda ~ dgamma(1, 0.0000001);
+	
+	# likelihood
+	for(i in 1:length(X)) {
+		X[i] ~ dpois(lambda);
+	}
+	
+	# predictions, given lambda
+	y ~ dpois(lambda);
+}

@@ -1,0 +1,12 @@
+model {
+	# prior
+	p ~ dbeta(a_prior,b_prior);
+	
+	# likelihood
+	for(i in 1:length(X)) {
+		X[i] ~ dbin(p,n);
+	}
+	
+	# predictions, given p
+	y ~ dbin(p,n);
+}
