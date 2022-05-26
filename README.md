@@ -7,14 +7,15 @@ The course aims to introduce some advanced tool in statistics analysis, with a p
 
 Index of assignments' solutions:
 
-- Ex 01: https://htmlpreview.github.io/?https://raw.githubusercontent.com/PaoloZinesi/AdvStat4PhysAnalysis/main/Homeworks/Ex_RLAB01/PaoloZinesi_RLAB01.html
+- [Exercise 01](https://htmlpreview.github.io/?https://raw.githubusercontent.com/PaoloZinesi/AdvStat4PhysAnalysis/main/Homeworks/Ex_RLAB01/PaoloZinesi_RLAB01.nb.html)
 
-- Ex 02: https://htmlpreview.github.io/?https://raw.githubusercontent.com/PaoloZinesi/AdvStat4PhysAnalysis/main/Homeworks/Ex_RLAB02/PaoloZinesi_RLAB02.html
+- [Exercise 02](https://htmlpreview.github.io/?https://raw.githubusercontent.com/PaoloZinesi/AdvStat4PhysAnalysis/main/Homeworks/Ex_RLAB02/PaoloZinesi_RLAB02.nb.html)
 
-- Ex 03: https://htmlpreview.github.io/?https://raw.githubusercontent.com/PaoloZinesi/AdvStat4PhysAnalysis/main/Homeworks/Ex_RLAB03/PaoloZinesi_RLAB03.html
+- [Exercise 03](https://htmlpreview.github.io/?https://raw.githubusercontent.com/PaoloZinesi/AdvStat4PhysAnalysis/main/Homeworks/Ex_RLAB03/PaoloZinesi_RLAB03.nb.html)
 
-- Ex 04: https://htmlpreview.github.io/?https://raw.githubusercontent.com/PaoloZinesi/AdvStat4PhysAnalysis/main/Homeworks/Ex_RLAB04/PaoloZinesi_RLAB04.html
+- [Exercise 04](https://htmlpreview.github.io/?https://raw.githubusercontent.com/PaoloZinesi/AdvStat4PhysAnalysis/main/Homeworks/Ex_RLAB04/PaoloZinesi_RLAB04.nb.html)
 
-- Ex 05: https://htmlpreview.github.io/?https://raw.githubusercontent.com/PaoloZinesi/AdvStat4PhysAnalysis/main/Homeworks/Ex_RLAB05/PaoloZinesi_RLAB05.html
+- [Exercise 05](https://htmlpreview.github.io/?https://raw.githubusercontent.com/PaoloZinesi/AdvStat4PhysAnalysis/main/Homeworks/Ex_RLAB05/PaoloZinesi_RLAB05.nb.html)
 
-- Ex 06: https://htmlpreview.github.io/?https://raw.githubusercontent.com/PaoloZinesi/AdvStat4PhysAnalysis/main/Homeworks/Ex_RLAB06/PaoloZinesi_RLAB06.html
+- [Exercise 06](https://htmlpreview.github.io/?https://raw.githubusercontent.com/PaoloZinesi/AdvStat4PhysAnalysis/main/Homeworks/Ex_RLAB06/PaoloZinesi_RLAB06.nb.html)
+

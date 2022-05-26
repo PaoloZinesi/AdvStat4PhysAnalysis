@@ -41,7 +41,7 @@ Select a couple of European countries of your choice and analyze the trends in t
 The file "Global_Mobility_Report.csv" is in the same folder of this notebook.
 
 ```{r}
-filename <- "Global_Mobility_Report.csv"
+filename <- "https://www.gstatic.com/covid19/mobility/Global_Mobility_Report.csv"
 countries <- c("IT", "GB", "FR", "DE")
 categories <- c("retail_and_recreation", "grocery_and_pharmacy", "parks", "transit_stations", "workplaces", "residential")
 fancy_categ <- c("retail_and_recreation" = "Retail and Recreation",
