@@ -214,10 +214,13 @@ plt2_u_post
 ```
 
 ```{r}
-cat("Corp 1: mean=", signif(mean_corp1_u, 3), ", median=", signif(median_corp1_u, 3), ", variance=", signif(var_corp1_u, 3), "\n",
-    "\t95% credibility interval=[", signif(CI_corp1_u[1],3), ",", signif(CI_corp1_u[2],3), "]\n", sep="")
-cat("Corp 2: mean=", signif(mean_corp2_u, 3), ", median=", signif(median_corp2_u, 3), ", variance=", signif(var_corp2_u, 3), "\n",
-    "\t95% credibility interval=[", signif(CI_corp2_u[1],3), ",", signif(CI_corp2_u[2],3), "]\n", sep="")
+cat(
+  "Corp 1: mean=", signif(mean_corp1_u, 3), ", median=", signif(median_corp1_u, 3), ", variance=", signif(var_corp1_u, 3), "\n",
+  "\t95% credibility interval=[", signif(CI_corp1_u[1],3), ",", signif(CI_corp1_u[2],3), "]\n",
+  
+  "Corp 2: mean=", signif(mean_corp2_u, 3), ", median=", signif(median_corp2_u, 3), ", variance=", signif(var_corp2_u, 3), "\n",
+  "\t95% credibility interval=[", signif(CI_corp2_u[1],3), ",", signif(CI_corp2_u[2],3), "]\n",
+  sep="")
 ```
 
 ```{r, warning=FALSE}
@@ -286,10 +289,13 @@ plt2_J_post
 ```
 
 ```{r}
-cat("Corp 1: mean=", signif(mean_corp1_J, 3), ", median=", signif(median_corp1_J, 3), ", variance=", signif(var_corp1_J, 3), "\n",
-    "\t95% credibility interval=[", signif(CI_corp1_J[1],3), ",", signif(CI_corp1_J[2],3), "]\n", sep="")
-cat("Corp 2: mean=", signif(mean_corp2_J, 3), ", median=", signif(median_corp2_J, 3), ", variance=", signif(var_corp2_J, 3), "\n",
-    "\t95% credibility interval=[", signif(CI_corp2_J[1],3), ",", signif(CI_corp2_J[2],3), "]\n", sep="")
+cat(
+  "Corp 1: mean=", signif(mean_corp1_J, 3), ", median=", signif(median_corp1_J, 3), ", variance=", signif(var_corp1_J, 3), "\n",
+  "\t95% credibility interval=[", signif(CI_corp1_J[1],3), ",", signif(CI_corp1_J[2],3), "]\n",
+  
+  "Corp 2: mean=", signif(mean_corp2_J, 3), ", median=", signif(median_corp2_J, 3), ", variance=", signif(var_corp2_J, 3), "\n",
+  "\t95% credibility interval=[", signif(CI_corp2_J[1],3), ",", signif(CI_corp2_J[2],3), "]\n",
+  sep="")
 ```
 
 ```{r, warning=FALSE}
@@ -486,10 +492,15 @@ CI_3e_beta_B <- c(qbeta(0.025, a3e_beta_post, b3e_beta_post),
 CI_3e_new_B <- c(qbeta(0.025, a3e_new_post, b3e_new_post),
            qbeta(0.975, a3e_new_post, b3e_new_post))
 
-cat("With Beta(1,10) prior:\n\tBayesian estimate for p = ", signif(p_3e_beta_B,3), ", mean=", signif(mean_3e_beta, 3), ", variance=", signif(var_3e_beta, 3), "\n",
-    "\t95% credibility interval=[", signif(CI_3e_beta_B[1],3), ",", signif(CI_3e_beta_B[2],3), "]\n", sep="")
-cat("With previous posterior as a new prior:\n\tBayesian estimate for p = ", signif(p_3e_new_B,3), ", mean=", signif(mean_3e_new, 3), ", variance=", signif(var_3e_new, 3), "\n",
-    "\t95% credibility interval=[", signif(CI_3e_new_B[1],3), ",", signif(CI_3e_new_B[2],3), "]\n", sep="")
+cat(
+  "With Beta(1,10) prior:\n\tBayesian estimate for p = ", signif(p_3e_beta_B,3),
+  ", mean=", signif(mean_3e_beta, 3), ", variance=", signif(var_3e_beta, 3), "\n",
+  "\t95% credibility interval=[", signif(CI_3e_beta_B[1],3), ",", signif(CI_3e_beta_B[2],3), "]\n",
+  
+  "With previous posterior as a new prior:\n\tBayesian estimate for p = ", signif(p_3e_new_B,3),
+  ", mean=", signif(mean_3e_new, 3), ", variance=", signif(var_3e_new, 3), "\n",
+  "\t95% credibility interval=[", signif(CI_3e_new_B[1],3), ",", signif(CI_3e_new_B[2],3), "]\n",
+  sep="")
 ```
 
 
@@ -559,7 +570,7 @@ data4$X <- y1
 data4$n <- n1
 
 # model computations
-jm4 <- jags.model("model4.bug", data4, quiet=TRUE)
+jm4 <- jags.model("model4.bug", data4, n.adapt=1000, quiet=TRUE)
 chain4 <- coda.samples(jm4, c("p"), n.iter=10000, progress.bar="none")
 print(summary(chain4))
 ```
@@ -573,14 +584,29 @@ sd_4_post <- unname(summary(chain4)$statistics["SD"])
 CI_1_post <- c(qbeta(0.025, a1_post, b1_post), qbeta(0.975, a1_post, b1_post))
 CI_4_post <- unname(summary(chain4)$quantiles[c("2.5%","97.5%")])
 
-cat("Mean computed by JAGS = ", signif(mean_4_post,4), "\n", sep="")
-cat("Mean computed (analytically) in point 1 = ", signif(mean_beta1_post,4), "\n", sep="")
-cat("-----------\n")
-cat("Variance computed by JAGS = ", signif(sd_4_post**2,4), "\n", sep="")
-cat("Variance computed (analytically) in point 1 = ", signif(var_beta1_post,4), "\n", sep="")
-cat("-----------\n")
-cat("95% credibility interval computed by JAGS = [", signif(CI_1_post[1],3), ",", signif(CI_1_post[2],3), "]\n", sep="")
-cat("95% credibility interval computed in point 1 = [", signif(CI_4_post[1],3), ",", signif(CI_4_post[2],3), "]\n", sep="")
+cat(
+  "Mean computed by JAGS = ", signif(mean_4_post,4), "\n",
+  "Mean computed (analytically) in point 1 = ", signif(mean_beta1_post,4), "\n",
+  
+  "-----------\n",
+  
+  "Variance computed by JAGS = ", signif(sd_4_post**2,4), "\n",
+  "Variance computed (analytically) in point 1 = ", signif(var_beta1_post,4), "\n",
+  
+  "-----------\n",
+  
+  "95% credibility interval computed by JAGS = [", signif(CI_1_post[1],3), ",", signif(CI_1_post[2],3), "]\n",
+  "95% credibility interval computed in point 1 = [", signif(CI_4_post[1],3), ",", signif(CI_4_post[2],3), "]\n",
+  
+  sep="")
+```
+
+```{r}
+# plot autocorrelation
+l = c(0:50)
+plot(x=l, y=unname(autocorr(chain4, lags=l))[[1]], type = 'o', pch = 20, col = "steelblue", cex = 1, lwd = 1,
+     main = "", xlab = "Lag", ylab = "Autocorrelation")
+abline(h=0, lty="dashed")
 ```
 
 
@@ -630,15 +656,25 @@ chain5_corp2_u <- coda.samples(jm5_corp2_u, c("lambda"), n.iter=10000, progress.
 ```
 
 ```{r}
-cat("Statistics for corp 1:\n")
-print(summary(chain5_corp1_u)$statistics)
-cat("\nQuantiles for corp 1:\n")
-print(summary(chain5_corp1_u)$quantiles)
-cat("\n\n")
-cat("Statistics for corp 2:\n")
-print(summary(chain5_corp2_u)$statistics)
-cat("\nQuantiles for corp 2:\n")
-print(summary(chain5_corp2_u)$quantiles)
+cat("Corp 1:\n")
+print(summary(chain5_corp1_u))
+cat("\n\n------------\n\n")
+cat("Corp 2:\n")
+print(summary(chain5_corp2_u))
+```
+
+```{r, fig.height=2.5, fig.width=6}
+# plot autocorrelations
+l = c(0:50)
+par(mfrow=c(1, 2), mar=c(4,4,4,2))
+
+plot(x=l, y=unname(autocorr(chain5_corp1_u, lags=l))[[1]], type = 'o', pch = 20, col = "steelblue", cex = 1, lwd = 1,
+     main = "Corp 1, uniform prior", xlab = "Lag", ylab = "Autocorrelation")
+abline(h=0, lty="dashed")
+
+plot(x=l, y=unname(autocorr(chain5_corp2_u, lags=l))[[1]], type = 'o', pch = 20, col = "steelblue", cex = 1, lwd = 1,
+     main = "Corp 2, uniform prior", xlab = "Lag", ylab = "Autocorrelation")
+abline(h=0, lty="dashed")
 ```
 
 ```{r, warning=FALSE}
@@ -700,16 +736,27 @@ chain5_corp2_J <- coda.samples(jm5_corp2_J, c("lambda"), n.iter=10000, progress.
 ```
 
 ```{r}
-cat("Statistics for corp 1:\n")
-print(summary(chain5_corp1_J)$statistics)
-cat("\nQuantiles for corp 1:\n")
-print(summary(chain5_corp1_J)$quantiles)
-cat("\n\n")
-cat("Statistics for corp 2:\n")
-print(summary(chain5_corp2_J)$statistics)
-cat("\nQuantiles for corp 2:\n")
-print(summary(chain5_corp2_J)$quantiles)
+cat("Corp 1:\n")
+print(summary(chain5_corp1_J))
+cat("\n\n------------\n\n")
+cat("Corp 2:\n")
+print(summary(chain5_corp2_J))
 ```
+
+```{r, fig.height=2.5, fig.width=6}
+# plot autocorrelations
+l = c(0:50)
+par(mfrow=c(1, 2), mar=c(4,4,4,2))
+
+plot(x=l, y=unname(autocorr(chain5_corp1_J, lags=l))[[1]], type = 'o', pch = 20, col = "steelblue", cex = 1, lwd = 1,
+     main = "Corp 1, Jeffrey's prior", xlab = "Lag", ylab = "Autocorrelation")
+abline(h=0, lty="dashed")
+
+plot(x=l, y=unname(autocorr(chain5_corp2_J, lags=l))[[1]], type = 'o', pch = 20, col = "steelblue", cex = 1, lwd = 1,
+     main = "Corp 2, Jeffrey's prior", xlab = "Lag", ylab = "Autocorrelation")
+abline(h=0, lty="dashed")
+```
+
 
 ```{r, warning=FALSE}
 # mean and std dev
@@ -761,11 +808,24 @@ data6$X <- y3a
 data6$n <- n3a
 
 # model computations
-jm6 <- jags.model("model6.bug", data6, quiet=TRUE)
-update(jm6, 1000, progress.bar="none")
+jm6 <- jags.model("model6.bug", data6, n.adapt=1000, quiet=TRUE)
 chain6 <- coda.samples(jm6, c("p"), n.iter=10000, progress.bar="none")
 print(summary(chain6))
 ```
+
+```{r}
+plot(chain6)
+```
+
+
+```{r}
+# plot autocorrelation
+l = c(0:50)
+plot(x=l, y=unname(autocorr(chain6, lags=l))[[1]], type = 'o', pch = 20, col = "steelblue", cex = 1, lwd = 1,
+     main = "", xlab = "Lag", ylab = "Autocorrelation")
+abline(h=0, lty="dashed")
+```
+
 
 ```{r, warning=FALSE}
 # mean and std dev
